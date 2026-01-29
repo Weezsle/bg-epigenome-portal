@@ -6,6 +6,7 @@ import {
   calculateSubclassRegionDistribution 
 } from '../store/taxonomyStore';
 import RegionDistributionChart from './RegionDistributionChart';
+import { getTooltipText } from '../utils/abbreviationLookup';
 
 type TaxonomySelectionProps = {
   nightMode: boolean;
@@ -325,7 +326,9 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
                       <span className="inline-block w-4 text-center mr-2">
                         {neighborhood.isExpanded ? '▼' : '▶'}
                       </span>
-                      {neighborhood.neighborhood}
+                      <span title={getTooltipText(neighborhood.neighborhood, 'neighborhood')}>
+                        {neighborhood.neighborhood}
+                      </span>
                     </td>
                     <td className="px-4 py-3"></td>
                   </tr>
@@ -347,7 +350,9 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
                           <span className="inline-block w-4 text-center mr-2">
                             {classObj.isExpanded ? '▼' : '▶'}
                           </span>
-                          {classObj.class}
+                          <span title={getTooltipText(classObj.class, 'class')}>
+                            {classObj.class}
+                          </span>
                         </td>
                         <td className="px-4 py-3"></td>
                       </tr>
@@ -369,7 +374,7 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
                               <span className="inline-block w-4 text-center mr-2">
                                 {subclass.isExpanded ? '▼' : '▶'}
                               </span>
-                              <span title={subclass.subclass}>{subclass.subclass}</span>
+                              <span title={getTooltipText(subclass.subclass, 'subclass')}>{subclass.subclass}</span>
                             </td>
                             <td className="px-4 py-3">
                               <button
@@ -403,7 +408,7 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
                               }`}
                             >
                               <td className={`px-4 py-3 pl-28 text-sm ${nightMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                                <span title={group.group}>{group.group}</span>
+                                <span title={getTooltipText(group.group, 'group')}>{group.group}</span>
                               </td>
                               <td className="px-4 py-3">
                                 <button

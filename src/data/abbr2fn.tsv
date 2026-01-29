@@ -1,0 +1,124 @@
+ACx MEIS2 GABA	group	allocortex Meis homeobox 2 GABAergic neuron
+ACx MEIS2 GABA	subclass	allocortex Meis homeobox 2 GABAergic neuron
+AMY-SLEA-BNST D1 GABA	group	amygdaloid complex-sublenticular extended amygdala-bed nucleus of stria terminalis D1 GABAergic neuron
+AMY-SLEA-BNST GABA	group	amygdaloid complex-sublenticular extended amygdala-bed nucleus of stria terminalis GABAergic neuron
+Astro-Epen	class	astrocyte-ependymal cell
+Astrocyte	group	astrocyte
+Astrocyte	subclass	astrocyte
+Astrocyte-1	group	astrocyte-1
+Astrocyte-2	group	astrocyte-2
+Astrocyte-3	group	astrocyte-3
+Astrocyte-4	group	astrocyte-4
+BAM	group	border-associated macrophage
+BF SKOR1 Glut	group	basal forebrain SKI family transcriptional corepressor 1 glutamatergic neuron
+CN CGE GABA	class	cerebral nuclei caudal ganglionic eminence GABAergic neuron
+CN Cholinergic GABA	subclass	cerebral nuclei cholinergic neuron GABAergic neuron
+CN GABA-Glut	class	cerebral nuclei GABAergic neuron-glutamatergic neuron
+CN GABA-Glut	subclass	cerebral nuclei GABAergic neuron-glutamatergic neuron
+CN LAMP5-CXCL14 GABA	subclass	cerebral nuclei lysosomal associated membrane protein family member 5-C-X-C motif chemokine ligand 14 GABAergic neuron
+CN LAMP5-LHX6 GABA	subclass	cerebral nuclei lysosomal associated membrane protein family member 5-LIM homeobox 6 GABAergic neuron
+CN LGE GABA	class	cerebral nuclei lateral ganglionic eminence GABAergic neuron
+CN LHX8 GABA	subclass	cerebral nuclei LIM homeobox 8 GABAergic neuron
+CN MEIS2 GABA	subclass	cerebral nuclei Meis homeobox 2 GABAergic neuron
+CN MGE GABA	class	cerebral nuclei medial ganglionic eminence GABAergic neuron
+CN ONECUT1 GABA	subclass	cerebral nuclei one cut homeobox 1 GABAergic neuron
+CN ST18 GABA	subclass	cerebral nuclei ST18 C2H2C-type zinc finger transcription factor GABAergic neuron
+CN VIP GABA	subclass	cerebral nuclei vasoactive intestinal peptide GABAergic neuron
+COP	group	committed oligodendrocyte precursor
+COP	subclass	committed oligodendrocyte precursor
+Cx GABA	class	cerebral cortex GABAergic neuron
+Endo	group	endothelial cell
+Endo	subclass	endothelial cell
+Ependymal	group	ependymal cell
+Ependymal	subclass	ependymal cell
+F GABA	group	forebrain (prosencephalon) GABAergic neuron
+F GABA	subclass	forebrain (prosencephalon) GABAergic neuron
+F Glut	subclass	forebrain (prosencephalon) glutamatergic neuron
+F M GABA	class	forebrain (prosencephalon) midbrain (mesencephalon) GABAergic neuron
+F M GATA3 GABA	group	forebrain (prosencephalon) midbrain (mesencephalon) GATA binding protein 3 GABAergic neuron
+F M GATA3 GABA	subclass	forebrain (prosencephalon) midbrain (mesencephalon) GATA binding protein 3 GABAergic neuron
+F M Glut	class	forebrain (prosencephalon) midbrain (mesencephalon) glutamatergic neuron
+F M Glut	subclass	forebrain (prosencephalon) midbrain (mesencephalon) glutamatergic neuron
+GPe MEIS2-SOX6 GABA	group	external segment of globus pallidus Meis homeobox 2-SRY-box transcription factor 6 GABAergic neuron
+GPe SOX6-CTXND1 GABA	group	external segment of globus pallidus SRY-box transcription factor 6-cortexin domain containing 1 GABAergic neuron
+GPe-NDB-SI LHX6-LHX8-GBX1 GABA	group	external segment of globus pallidus-nucleus of diagonal band-substantia innominata LIM homeobox 6-LIM homeobox 8-gastrulation brain homeobox 1 GABAergic neuron
+GPi Core	group	internal division of globus pallidus , medial (central) portion
+GPi Shell	group	internal division of globus pallidus , lateral (peripheral) portion
+GPin-BF Cholinergic GABA	group	interstitial cholinergic nucleus of globus pallidus-basal forebrain cholinergic neuron GABAergic neuron
+Glut Sero Dopa	neighborhood	glutamatergic neuron serotonergic neuron dopaminergic neuron
+ImAstro	group	immune astrocyte
+ImOligo	group	immune oligodendrocyte
+Immune	class	leukocyte
+LAMP5-CXCL14 GABA	group	lysosomal associated membrane protein family member 5-C-X-C motif chemokine ligand 14 GABAergic neuron
+LAMP5-LHX6 GABA	group	lysosomal associated membrane protein family member 5-LIM homeobox 6 GABAergic neuron
+Lymphocyte	group	lymphocyte
+Lymphocyte	subclass	lymphocyte
+M Dopa	class	midbrain (mesencephalon) dopaminergic neuron
+M Dopa	subclass	midbrain (mesencephalon) dopaminergic neuron
+Macrophage	subclass	macrophage
+Microglia	group	microglial cell
+Microglia	subclass	microglial cell
+Microglia-1	group	microglial cell-1
+Microglia-2	group	microglial cell-2
+Microglia-3	group	microglial cell-3
+Monocyte	group	monocyte
+Monocyte	subclass	monocyte
+Nonneuron	neighborhood	non-neuronal cell
+OB Dopa-GABA	group	olfactory bulb dopaminergic neuron-GABAergic neuron
+OB FRMD7 GABA	group	olfactory bulb FERM domain containing 7 GABAergic neuron
+OPC	group	oligodendrocyte precursor cell
+OPC	subclass	oligodendrocyte precursor cell
+OPC-Oligo	class	oligodendrocyte precursor cell-oligodendrocyte
+OT D1 ICj	group	olfactory tubercle D1 Island of Calleja granule cell
+OT Granular GABA	subclass	olfactory tubercle granule cell GABAergic neuron
+Oligo OPALIN	group	oligodendrocyte oligodendrocytic myelin paranodal and inner loop protein
+Oligo PLEKHG1	group	oligodendrocyte pleckstrin homology and RhoGEF domain containing G1
+Oligodendrocyte	subclass	oligodendrocyte
+Pericyte	group	pericyte
+Pericyte	subclass	pericyte
+SMC	group	smooth muscle cell
+SMC	subclass	smooth muscle cell
+SN EBF2 GABA	group	substantia nigra EBF transcription factor 2 GABAergic neuron
+SN GATA3-PVALB GABA	group	substantia nigra GATA binding protein 3-parvalbumin GABAergic neuron
+SN PAX7 GABA	subclass	substantia nigra paired box 7 GABAergic neuron
+SN SEMA5A GABA	group	substantia nigra semaphorin 5A GABAergic neuron
+SN SOX6 Dopa	group	substantia nigra SRY-box transcription factor 6 dopaminergic neuron
+SN-VTR CALB1 Dopa	group	substantia nigra-ventral tegmental region of midbrain calbindin 1 dopaminergic neuron
+SN-VTR GAD2 Dopa	group	substantia nigra-ventral tegmental region of midbrain glutamate decarboxylase 2 dopaminergic neuron
+SN-VTR-HTH GATA3-TCF7L2 GABA	group	substantia nigra-ventral tegmental region of midbrain-hypothalamus GATA binding protein 3-transcription factor 7 like 2 GABAergic neuron
+STH PVALB-PITX2 Glut	group	subthalamic nucleus parvalbumin-paired like homeodomain 2 glutamatergic neuron
+STR Cholinergic GABA	group	striatum cholinergic neuron GABAergic neuron
+STR D1 MSN	subclass	striatum D1 medium spiny neuron
+STR D1D2 Hybrid MSN	group	striatum D1/D2 hybrid medium spiny neuron
+STR D2 MSN	subclass	striatum D2 medium spiny neuron
+STR FS PTHLH-PVALB GABA	group	striatum fast spiking neuron parathyroid hormone like hormone-parvalbumin GABAergic neuron
+STR Hybrid MSN	subclass	striatum hybrid medium spiny neuron
+STR LYPD6-RSPO2 GABA	group	striatum LY6/PLAUR domain containing 6-R-spondin 2 GABAergic neuron
+STR RSPO2 GABA	subclass	striatum R-spondin 2 GABAergic neuron
+STR SST GABA	subclass	striatum somatostatin GABAergic neuron
+STR SST-ADARB2 GABA	group	striatum somatostatin-adenosine deaminase RNA specific B2 (inactive) GABAergic neuron
+STR SST-CHODL GABA	group	striatum somatostatin-chondrolectin GABAergic neuron
+STR SST-CHODL GABA	subclass	striatum somatostatin-chondrolectin GABAergic neuron
+STR SST-CHODL GRIN2A GABA	group	striatum somatostatin-chondrolectin GABAergic neuron
+STR SST-CHODL NRP2 GABA	group	striatum somatostatin-chondrolectin GABAergic neuron
+STR SST-CHODL RORA GABA	group	striatum somatostatin-chondrolectin GABAergic neuron
+STR SST-RSPO2 GABA	group	striatum somatostatin-R-spondin 2 GABAergic neuron
+STR TAC3-PLPP4 GABA	group	striatum tachykinin precursor 3-phospholipid phosphatase 4 GABAergic neuron
+STR-BF TAC3-PLPP4-LHX8 GABA	group	striatum-basal forebrain tachykinin precursor 3-phospholipid phosphatase 4-LIM homeobox 8 GABAergic neuron
+STRd Cholinergic GABA	group	dorsal striatum (caudoputamen complex-CP, STRd) cholinergic neuron GABAergic neuron
+STRd D1 Matrix MSN	group	dorsal striatum (caudoputamen complex-CP, STRd) D1 matrix medium spiny neuron
+STRd D1 Striosome MSN	group	dorsal striatum (caudoputamen complex-CP, STRd) D1 striosome medium spiny neuron
+STRd D2 Matrix MSN	group	dorsal striatum (caudoputamen complex-CP, STRd) D2 matrix medium spiny neuron
+STRd D2 StrioMat Hybrid MSN	group	dorsal striatum (caudoputamen complex-CP, STRd) D2 striosome matrix hybrid medium spiny neuron
+STRd D2 Striosome MSN	group	dorsal striatum (caudoputamen complex-CP, STRd) D2 striosome medium spiny neuron
+STRv D1 MSN	group	ventral striatum (STRv) D1 medium spiny neuron
+STRv D1 NUDAP MSN	group	ventral striatum (STRv) D1 medium spiny neuron
+STRv D2 MSN	group	ventral striatum (STRv) D2 medium spiny neuron
+Subpallium GABA	neighborhood	subpallium GABAergic neuron
+Subpallium GABA-Glut	neighborhood	subpallium GABAergic neuron-glutamatergic neuron
+VIP GABA	group	vasoactive intestinal peptide GABAergic neuron
+VLMC	group	vascular leptomeningeal cell
+VLMC	subclass	vascular leptomeningeal cell
+VTR-HTH Glut	group	ventral tegmental region of midbrain-hypothalamus glutamatergic neuron
+Vascular	class	vascular system
+ZI-HTH GABA	group	zona incerta-hypothalamus GABAergic neuron

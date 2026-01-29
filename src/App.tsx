@@ -49,11 +49,9 @@ function App() {
   const [selectedTracks, setSelectedTracks] = useState<Track[]>([]);
   
   // Access serialized selections for debugging or passing to other components
-  // Convert to flat format for backward compatibility with existing components
+  // Keep groups and subclasses separated to distinguish between them
   const taxonomySelections = useMemo(() => {
-    const serialized = serializeTaxonomyStore(taxonomyData);
-    // Merge groups and subclasses into a flat structure for components that expect it
-    return { ...serialized.groups, ...serialized.subclasses };
+    return serializeTaxonomyStore(taxonomyData);
   }, [taxonomyData]);
 
   // Callback to update selected tracks from AssaySelection

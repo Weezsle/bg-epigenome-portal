@@ -2,6 +2,7 @@ import type { FC } from 'react';
 import { useMemo, useState } from 'react';
 import { parseTaxonomyData, type TaxonomyNeighborhood } from '../store/taxonomyStore';
 import { parseTracksData, type Track, getUniqueAssays } from '../store/trackStore';
+import { getTooltipText } from '../utils/abbreviationLookup';
 
 type DatasetOverviewProps = {
   nightMode: boolean;
@@ -621,9 +622,12 @@ const DatasetOverview: FC<DatasetOverviewProps> = ({ nightMode }) => {
                         </span>
                       </td>
                     )}
-                    <td className={`px-3 py-1.5 border font-medium ${
-                      nightMode ? 'border-science-700/50 text-white' : 'border-science-200 text-science-800'
-                    }`}>
+                    <td 
+                      className={`px-3 py-1.5 border font-medium ${
+                        nightMode ? 'border-science-700/50 text-white' : 'border-science-200 text-science-800'
+                      }`}
+                      title={getTooltipText(row.subclass, 'subclass')}
+                    >
                       {row.subclass}
                     </td>
                     {assaySpeciesCombos.map(combo => (
@@ -779,15 +783,19 @@ const DatasetOverview: FC<DatasetOverviewProps> = ({ nightMode }) => {
                         className={`px-3 py-1.5 border ${
                           nightMode ? 'border-science-700/50' : 'border-science-200'
                         }`}
+                        title={getTooltipText(row.subclass, 'subclass')}
                       >
                         <span className={`text-xs ${nightMode ? 'text-science-400' : 'text-science-600'}`}>
                           {row.subclass}
                         </span>
                       </td>
                     )}
-                    <td className={`px-3 py-1.5 border font-medium ${
-                      nightMode ? 'border-science-700/50 text-white' : 'border-science-200 text-science-800'
-                    }`}>
+                    <td 
+                      className={`px-3 py-1.5 border font-medium ${
+                        nightMode ? 'border-science-700/50 text-white' : 'border-science-200 text-science-800'
+                      }`}
+                      title={getTooltipText(row.group, 'group')}
+                    >
                       {row.group}
                     </td>
                     {assaySpeciesCombos.map(combo => (

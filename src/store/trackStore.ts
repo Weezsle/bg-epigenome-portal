@@ -99,23 +99,46 @@ function getReferenceOrder(reference: string | undefined): number {
 }
 
 // Filter and sort tracks based on taxonomy selections
-// taxonomySelections is now Record<string, boolean> where true = selected
+// taxonomySelections can be either:
+// 1. Separated format: { groups: Record<string, boolean>, subclasses: Record<string, boolean> }
+// 2. Legacy flat format: Record<string, boolean>
 export function filterAndSortTracks(
   tracks: Track[],
-  taxonomySelections: Record<string, boolean>,
+  taxonomySelections: Record<string, boolean> | { groups: Record<string, boolean>, subclasses: Record<string, boolean> },
   taxonomyData: TaxonomyNeighborhood[]
 ): Track[] {
-  // Get all selected subclasses and groups
-  const selectedItems = new Set<string>();
+  // Parse selections into separate sets for subclasses and groups
+  let selectedSubclasses = new Set<string>();
+  let selectedGroups = new Set<string>();
 
-  Object.entries(taxonomySelections).forEach(([name, isSelected]) => {
-    if (isSelected) {
-      selectedItems.add(name);
-    }
-  });
+  // Check if we have the new separated format
+  if ('groups' in taxonomySelections && 'subclasses' in taxonomySelections) {
+    // New format: explicitly separated
+    Object.entries(taxonomySelections.subclasses).forEach(([name, isSelected]) => {
+      if (isSelected) {
+        selectedSubclasses.add(name);
+      }
+    });
+    Object.entries(taxonomySelections.groups).forEach(([name, isSelected]) => {
+      if (isSelected) {
+        selectedGroups.add(name);
+      }
+    });
+  } else {
+    // Legacy flat format: merge into a single set (old behavior for backward compatibility)
+    const selectedItems = new Set<string>();
+    Object.entries(taxonomySelections).forEach(([name, isSelected]) => {
+      if (isSelected) {
+        selectedItems.add(name);
+      }
+    });
+    // For backward compatibility, check both subclass and group against the same set
+    selectedSubclasses = selectedItems;
+    selectedGroups = selectedItems;
+  }
 
   // If no selections, return empty (user needs to select something first)
-  if (selectedItems.size === 0) {
+  if (selectedSubclasses.size === 0 && selectedGroups.size === 0) {
     return [];
   }
 
@@ -126,9 +149,9 @@ export function filterAndSortTracks(
   const filteredTracks = tracks.filter((track) => {
     const { metadata } = track;
     
-    // Check if track matches selected subclass or group
-    const matchesSubclass = metadata.subclass && selectedItems.has(metadata.subclass);
-    const matchesGroup = metadata.group && selectedItems.has(metadata.group);
+    // Check if track matches selected subclass or group (now using separate sets)
+    const matchesSubclass = metadata.subclass && selectedSubclasses.has(metadata.subclass);
+    const matchesGroup = metadata.group && selectedGroups.has(metadata.group);
     
     return matchesSubclass || matchesGroup;
   }).map(track => ({ ...track, selected: true })); // Default: show all

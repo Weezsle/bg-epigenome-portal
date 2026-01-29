@@ -1,11 +1,12 @@
 import React, { useMemo, useState, useEffect, type FC } from 'react';
 import { filterAndSortTracks, type Track } from '../store/trackStore';
 import type { TaxonomyNeighborhood } from '../store/taxonomyStore';
+import { getTooltipText } from '../utils/abbreviationLookup';
 
 type AssaySelectionProps = {
   nightMode: boolean;
   allTracks: Track[];
-  taxonomySelections: Record<string, boolean>;
+  taxonomySelections: { groups: Record<string, boolean>, subclasses: Record<string, boolean> };
   taxonomyData: TaxonomyNeighborhood[];
   onTracksUpdate: (tracks: Track[]) => void;
   onNextStep?: () => void;
@@ -585,14 +586,20 @@ const AssaySelection: FC<AssaySelectionProps> = ({
                       <td className={`px-4 py-4 text-sm ${
                         nightMode ? 'text-gray-300' : 'text-gray-700'
                       }`}>
-                        <div className="max-w-xs truncate" title={track.metadata.subclass || '-'}>
+                        <div 
+                          className="max-w-xs truncate" 
+                          title={track.metadata.subclass ? getTooltipText(track.metadata.subclass, 'subclass') : '-'}
+                        >
                           {track.metadata.subclass || '-'}
                         </div>
                       </td>
                       <td className={`px-4 py-4 text-sm ${
                         nightMode ? 'text-gray-300' : 'text-gray-700'
                       }`}>
-                        <div className="max-w-xs font-medium whitespace-normal break-words" title={track.metadata.group || '-'}>
+                        <div 
+                          className="max-w-xs font-medium whitespace-normal break-words" 
+                          title={track.metadata.group ? getTooltipText(track.metadata.group, 'group') : '-'}
+                        >
                           {track.metadata.group || '-'}
                         </div>
                       </td>
