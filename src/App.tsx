@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import TabNavigation, { TabDefinition } from './components/TabNavigation';
 import TaxonomySelection from './components/TaxonomySelection';
@@ -12,7 +12,7 @@ import SessionTab from './components/SessionTab';
 import ScAnalysisTab from './components/ScAnalysisTab';
 import CookieBanner from './components/CookieBanner';
 import { parseTaxonomyData, type TaxonomyNeighborhood, serializeTaxonomyStore } from './store/taxonomyStore';
-import { parseTracksData, type Track } from './store/trackStore';
+import { parseTracksData, filterAndSortTracks, type Track } from './store/trackStore';
 import { getCookie, setCookie } from './utils/cookieUtils';
 import './style.css';
 
@@ -45,8 +45,8 @@ function App() {
   // Load all tracks data before page renders
   const [allTracks] = useState<Track[]>(() => parseTracksData());
   
-  // Selected tracks for browser (passed from AssaySelection)
-  const [selectedTracks, setSelectedTracks] = useState<Track[]>([]);
+  // Track states with selection managed at App level to persist across tab changes
+  const [trackStates, setTrackStates] = useState<Track[]>([]);
   
   // Access serialized selections for debugging or passing to other components
   // Keep groups and subclasses separated to distinguish between them
@@ -54,10 +54,77 @@ function App() {
     return serializeTaxonomyStore(taxonomyData);
   }, [taxonomyData]);
 
-  // Callback to update selected tracks from AssaySelection
-  const handleTracksUpdate = useCallback((tracks: Track[]) => {
-    setSelectedTracks(tracks);
+  // Filter and sort tracks based on taxonomy selections at App level
+  const sortedTracks = useMemo(() => {
+    return filterAndSortTracks(allTracks, taxonomySelections, taxonomyData);
+  }, [allTracks, taxonomySelections, taxonomyData]);
+
+  // Track previous taxonomy selections to detect changes
+  const prevTaxonomySelectionsRef = useRef<string | null>(null);
+
+  // Helper function to serialize taxonomy selections for comparison
+  const serializeTaxonomySelections = useCallback((selections: { groups: Record<string, boolean>, subclasses: Record<string, boolean> }): string => {
+    return JSON.stringify({
+      groups: Object.entries(selections.groups).filter(([_, v]) => v).map(([k]) => k).sort(),
+      subclasses: Object.entries(selections.subclasses).filter(([_, v]) => v).map(([k]) => k).sort()
+    });
   }, []);
+
+  // Handle track selection logic at App level
+  useEffect(() => {
+    const currentTaxonomyString = serializeTaxonomySelections(taxonomySelections);
+    const taxonomyChanged = prevTaxonomySelectionsRef.current !== null && 
+                           prevTaxonomySelectionsRef.current !== currentTaxonomyString;
+
+    if (taxonomyChanged) {
+      // Taxonomy changed: select all tracks
+      setTrackStates(sortedTracks.map(track => ({ ...track, selected: true })));
+    } else if (prevTaxonomySelectionsRef.current === null && sortedTracks.length > 0) {
+      // First load: select all tracks
+      setTrackStates(sortedTracks.map(track => ({ ...track, selected: true })));
+    } else if (!taxonomyChanged && trackStates.length > 0 && sortedTracks.length > 0) {
+      // Taxonomy unchanged: preserve user selections
+      const selectionMap = new Map<string, boolean>();
+      trackStates.forEach(track => {
+        selectionMap.set(track.config.url, track.selected || false);
+      });
+
+      // Check if sortedTracks structure changed (not just selections)
+      const sortedTrackUrls = new Set(sortedTracks.map(t => t.config.url));
+      const currentTrackUrls = new Set(trackStates.map(t => t.config.url));
+      
+      const structureChanged = sortedTrackUrls.size !== currentTrackUrls.size || 
+                              Array.from(sortedTrackUrls).some(url => !currentTrackUrls.has(url));
+
+      if (structureChanged) {
+        // Apply preserved selections to the sorted tracks
+        setTrackStates(sortedTracks.map(track => ({
+          ...track,
+          selected: selectionMap.has(track.config.url) 
+            ? selectionMap.get(track.config.url)!
+            : true // Default to selected for any new tracks
+        })));
+      }
+    }
+
+    // Update the reference for next comparison
+    prevTaxonomySelectionsRef.current = currentTaxonomyString;
+  // Note: trackStates is intentionally excluded to prevent infinite loops
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortedTracks, taxonomySelections, serializeTaxonomySelections]);
+
+  // Get selected tracks for the browser
+  const selectedTracks = useMemo(() => {
+    return trackStates.filter(track => track.selected);
+  }, [trackStates]);
+
+  // Handle loading a session
+  const handleLoadSession = useCallback((loadedTaxonomyData: TaxonomyNeighborhood[], loadedTrackStates: Track[]) => {
+    setTaxonomyData(loadedTaxonomyData);
+    setTrackStates(loadedTrackStates);
+    // Reset the previous taxonomy ref to prevent auto-selection
+    prevTaxonomySelectionsRef.current = serializeTaxonomySelections(serializeTaxonomyStore(loadedTaxonomyData));
+  }, [serializeTaxonomySelections]);
 
 
   // Check if this is first visit and show guide
@@ -178,10 +245,8 @@ function App() {
               {currentTab === 'assay' && (
                 <AssaySelection 
                   nightMode={nightMode} 
-                  allTracks={allTracks}
-                  taxonomySelections={taxonomySelections}
-                  taxonomyData={taxonomyData}
-                  onTracksUpdate={handleTracksUpdate}
+                  trackStates={trackStates}
+                  setTrackStates={setTrackStates}
                   onNextStep={() => setCurrentTab('browser')}
                 />
               )}
@@ -189,7 +254,10 @@ function App() {
               {currentTab === 'about' && <AboutSection nightMode={nightMode} />}
               {currentTab === 'session' && (
                 <SessionTab 
-                  nightMode={nightMode} 
+                  nightMode={nightMode}
+                  taxonomyData={taxonomyData}
+                  trackStates={trackStates}
+                  onLoadSession={handleLoadSession}
                   onShowLanding={() => setShowLanding(true)}
                   onStartGuide={() => setShowGuide(true)}
                 />

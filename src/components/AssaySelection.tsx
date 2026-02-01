@@ -1,46 +1,30 @@
-import React, { useMemo, useState, useEffect, type FC } from 'react';
-import { filterAndSortTracks, type Track } from '../store/trackStore';
-import type { TaxonomyNeighborhood } from '../store/taxonomyStore';
+import React, { useMemo, useState, type FC } from 'react';
+import type { Track } from '../store/trackStore';
 import { getTooltipText } from '../utils/abbreviationLookup';
 
 type AssaySelectionProps = {
   nightMode: boolean;
-  allTracks: Track[];
-  taxonomySelections: { groups: Record<string, boolean>, subclasses: Record<string, boolean> };
-  taxonomyData: TaxonomyNeighborhood[];
-  onTracksUpdate: (tracks: Track[]) => void;
+  trackStates: Track[];
+  setTrackStates: React.Dispatch<React.SetStateAction<Track[]>>;
   onNextStep?: () => void;
 };
 
 const AssaySelection: FC<AssaySelectionProps> = ({ 
   nightMode, 
-  allTracks, 
-  taxonomySelections,
-  taxonomyData,
-  onTracksUpdate,
+  trackStates,
+  setTrackStates,
   onNextStep,
 }) => {
   // Search query state
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Filter and sort tracks based on taxonomy selections
-  const sortedTracks = useMemo(() => {
-    return filterAndSortTracks(allTracks, taxonomySelections, taxonomyData);
-  }, [allTracks, taxonomySelections, taxonomyData]);
-
-  // Local state for track selection
-  const [trackStates, setTrackStates] = useState<Track[]>([]);
-
-  // Update local state when sorted tracks change
-  useEffect(() => {
-    setTrackStates(sortedTracks);
-  }, [sortedTracks]);
-
   // Filter tracks based on search query
   const filteredTracks = useMemo(() => {
     if (!searchQuery.trim()) return trackStates;
     
-    const query = searchQuery.toLowerCase();
+    // Split search query into individual words
+    const searchWords = searchQuery.toLowerCase().split(/\s+/).filter(word => word.length > 0);
+    
     return trackStates.filter(track => {
       const searchableFields = [
         track.metadata.subclass,
@@ -54,7 +38,11 @@ const AssaySelection: FC<AssaySelectionProps> = ({
         track.config.type,
       ].filter(Boolean).map(f => f!.toLowerCase());
       
-      return searchableFields.some(field => field.includes(query));
+      // Combine all searchable fields into a single string for easier matching
+      const combinedText = searchableFields.join(' ');
+      
+      // Track matches if ALL search words are found in the combined text
+      return searchWords.every(word => combinedText.includes(word));
     });
   }, [trackStates, searchQuery]);
 
@@ -62,7 +50,9 @@ const AssaySelection: FC<AssaySelectionProps> = ({
   const filteredIndices = useMemo(() => {
     if (!searchQuery.trim()) return trackStates.map((_, i) => i);
     
-    const query = searchQuery.toLowerCase();
+    // Split search query into individual words
+    const searchWords = searchQuery.toLowerCase().split(/\s+/).filter(word => word.length > 0);
+    
     return trackStates.reduce<number[]>((acc, track, i) => {
       const searchableFields = [
         track.metadata.subclass,
@@ -76,7 +66,11 @@ const AssaySelection: FC<AssaySelectionProps> = ({
         track.config.type,
       ].filter(Boolean).map(f => f!.toLowerCase());
       
-      if (searchableFields.some(field => field.includes(query))) {
+      // Combine all searchable fields into a single string for easier matching
+      const combinedText = searchableFields.join(' ');
+      
+      // Track matches if ALL search words are found in the combined text
+      if (searchWords.every(word => combinedText.includes(word))) {
         acc.push(i);
       }
       return acc;
@@ -179,13 +173,6 @@ const AssaySelection: FC<AssaySelectionProps> = ({
       return order.indexOf(a) - order.indexOf(b);
     });
   }, [trackStates]);
-
-  // Update parent component whenever track states change
-  useEffect(() => {
-    // Only pass tracks that are selected
-    const selected = trackStates.filter(track => track.selected);
-    onTracksUpdate(selected);
-  }, [trackStates, onTracksUpdate]);
 
   // Get reference label
   const getReferenceLabel = (reference: string | undefined) => {

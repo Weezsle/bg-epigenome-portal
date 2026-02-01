@@ -221,6 +221,11 @@ export function getHierarchyColor(neighborhoodName: string, level: 'neighborhood
 
 // Parse region distribution string (dictionary format) into a map
 export function parseRegionDistribution(regionDistStr: string): Record<string, number> {
+  // Return empty object for empty/null/undefined strings
+  if (!regionDistStr || regionDistStr.trim() === '') {
+    return {};
+  }
+  
   try {
     // The string is in Python dict format like "{'GPi': 1329, 'GPe': 312, ...}"
     // Convert to JSON format
