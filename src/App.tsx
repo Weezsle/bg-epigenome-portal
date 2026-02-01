@@ -10,16 +10,17 @@ import LandingPage from './components/LandingPage';
 import InteractiveGuide from './components/InteractiveGuide';
 import SessionTab from './components/SessionTab';
 import ScAnalysisTab from './components/ScAnalysisTab';
+import TutorialTab from './components/TutorialTab';
 import CookieBanner from './components/CookieBanner';
 import { parseTaxonomyData, type TaxonomyNeighborhood, serializeTaxonomyStore } from './store/taxonomyStore';
 import { parseTracksData, filterAndSortTracks, type Track } from './store/trackStore';
 import { getCookie, setCookie } from './utils/cookieUtils';
 import './style.css';
 
-type TabId = 'taxonomy' | 'assay' | 'browser' | 'dataset' | 'about' | 'session' | 'scAnalysis';
+type TabId = 'tutorial' | 'taxonomy' | 'assay' | 'browser' | 'dataset' | 'about' | 'session' | 'scAnalysis';
 
 // Valid tab IDs
-const validTabIds: TabId[] = ['taxonomy', 'assay', 'browser', 'dataset', 'about', 'session', 'scAnalysis'];
+const validTabIds: TabId[] = ['tutorial', 'taxonomy', 'assay', 'browser', 'dataset', 'about', 'session', 'scAnalysis'];
 
 // Get initial tab from URL params
 function getInitialTabFromURL(): TabId {
@@ -28,7 +29,7 @@ function getInitialTabFromURL(): TabId {
   if (tabParam && validTabIds.includes(tabParam as TabId)) {
     return tabParam as TabId;
   }
-  return 'taxonomy';
+  return 'tutorial';
 }
 
 function App() {
@@ -164,6 +165,7 @@ function App() {
 
   const tabs: TabDefinition[] = useMemo(
     () => [
+      { id: 'tutorial', label: 'Tutorial' },
       { id: 'taxonomy', label: 'Taxonomy Selection' },
       { id: 'assay', label: 'Assay Selection' },
       { id: 'browser', label: 'Browser' },
@@ -234,6 +236,12 @@ function App() {
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             {/* Tab content with animations */}
             <section className="animate-fade-in">
+              {currentTab === 'tutorial' && (
+                <TutorialTab 
+                  nightMode={nightMode}
+                  onNavigate={(tab) => setCurrentTab(tab as TabId)}
+                />
+              )}
               {currentTab === 'taxonomy' && (
                 <TaxonomySelection 
                   nightMode={nightMode} 
