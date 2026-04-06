@@ -154,7 +154,7 @@ export function filterAndSortTracks(
     const matchesGroup = metadata.group && selectedGroups.has(metadata.group);
     
     return matchesSubclass || matchesGroup;
-  }).map(track => ({ ...track, selected: true })); // Default: show all
+  }).map(track => ({ ...track, selected: false })); // Default: unselected
 
   // Sort tracks by: reference (species) > subclass > group > assay > source
   filteredTracks.sort((a, b) => {

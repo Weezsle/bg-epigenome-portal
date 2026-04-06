@@ -78,11 +78,11 @@ function App() {
                            prevTaxonomySelectionsRef.current !== currentTaxonomyString;
 
     if (taxonomyChanged) {
-      // Taxonomy changed: select all tracks
-      setTrackStates(sortedTracks.map(track => ({ ...track, selected: true })));
+      // Taxonomy changed: deselect all tracks
+      setTrackStates(sortedTracks.map(track => ({ ...track, selected: false })));
     } else if (prevTaxonomySelectionsRef.current === null && sortedTracks.length > 0) {
-      // First load: select all tracks
-      setTrackStates(sortedTracks.map(track => ({ ...track, selected: true })));
+      // First load: deselect all tracks
+      setTrackStates(sortedTracks.map(track => ({ ...track, selected: false })));
     } else if (!taxonomyChanged && trackStates.length > 0 && sortedTracks.length > 0) {
       // Taxonomy unchanged: preserve user selections
       const selectionMap = new Map<string, boolean>();
@@ -98,12 +98,12 @@ function App() {
                               Array.from(sortedTrackUrls).some(url => !currentTrackUrls.has(url));
 
       if (structureChanged) {
-        // Apply preserved selections to the sorted tracks
+        // Apply preserved selections to the sorted tracks, default new tracks to unselected
         setTrackStates(sortedTracks.map(track => ({
           ...track,
           selected: selectionMap.has(track.config.url) 
             ? selectionMap.get(track.config.url)!
-            : true // Default to selected for any new tracks
+            : false
         })));
       }
     }
@@ -126,6 +126,15 @@ function App() {
     // Reset the previous taxonomy ref to prevent auto-selection
     prevTaxonomySelectionsRef.current = serializeTaxonomySelections(serializeTaxonomyStore(loadedTaxonomyData));
   }, [serializeTaxonomySelections]);
+
+  // Reset everything to a fresh state
+  const handleReset = useCallback(() => {
+    const freshTaxonomy = parseTaxonomyData();
+    setTaxonomyData(freshTaxonomy);
+    setTrackStates([]);
+    prevTaxonomySelectionsRef.current = null;
+    setCurrentTab('taxonomy');
+  }, []);
 
 
   // Check if this is first visit and show guide
@@ -212,6 +221,7 @@ function App() {
         <Header 
           nightMode={nightMode} 
           onToggleNightMode={() => setNightMode(!nightMode)}
+          onReset={handleReset}
           tabs={tabs}
           currentTab={currentTab}
           onTabChange={(tab) => setCurrentTab(tab as TabId)}

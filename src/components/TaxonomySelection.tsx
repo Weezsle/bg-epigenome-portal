@@ -1,12 +1,152 @@
-import React, { type FC, useState, useMemo } from 'react';
+import React, { type FC, useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { TaxonomyNeighborhood, AssayType } from '../store/taxonomyStore';
+import { parseTracksData } from '../store/trackStore';
 import { 
   getHierarchyColor, 
   calculateGroupRegionDistribution,
   calculateSubclassRegionDistribution 
 } from '../store/taxonomyStore';
 import RegionDistributionChart from './RegionDistributionChart';
-import { getTooltipText } from '../utils/abbreviationLookup';
+import { getFullName } from '../utils/abbreviationLookup';
+
+const Tooltip: FC<{ text: string | null | undefined; children: React.ReactNode }> = ({ text, children }) => {
+  const [visible, setVisible] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  if (!text) return <>{children}</>;
+
+  const handleMouseEnter = () => {
+    timerRef.current = setTimeout(() => setVisible(true), 100);
+  };
+
+  const handleMouseLeave = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setVisible(false);
+  };
+
+  return (
+    <span
+      className="relative inline-block"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {children}
+      {visible && (
+        <span className="absolute z-50 bottom-full left-0 mb-2 px-3 py-2 text-sm font-semibold text-white bg-gray-900 rounded-lg shadow-xl whitespace-pre-wrap max-w-[260px] pointer-events-none">
+          {text}
+          <span className="absolute top-full left-4 border-4 border-transparent border-t-gray-900" />
+        </span>
+      )}
+    </span>
+  );
+};
+
+// Okabe-Ito colorblind-friendly palette — one color per assay
+const OKABE_ITO = [
+  '#E69F00', // orange
+  '#56B4E9', // sky blue
+  '#009E73', // bluish green
+  '#CC79A7', // reddish purple
+  '#0072B2', // blue
+  '#D55E00', // vermillion
+  '#F0E442', // yellow
+  '#000000', // black
+];
+
+// Single dot with a rich hover card — rendered via portal into document.body
+// so it is never clipped by overflow:hidden or CSS transforms on ancestors
+const AssayDot: FC<{ assay: string; modalities: Set<string>; color: string }> = ({ assay, modalities, color }) => {
+  const [cardPos, setCardPos] = useState<{ x: number; y: number } | null>(null);
+  const dotRef = useRef<HTMLSpanElement>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const updatePos = () => {
+    if (dotRef.current) {
+      const rect = dotRef.current.getBoundingClientRect();
+      setCardPos({ x: rect.left + rect.width / 2, y: rect.top });
+    }
+  };
+
+  const handleMouseEnter = () => {
+    timerRef.current = setTimeout(updatePos, 100);
+  };
+
+  const handleMouseLeave = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setCardPos(null);
+  };
+
+  // Dismiss on scroll so the card doesn't float away from the dot
+  useEffect(() => {
+    if (!cardPos) return;
+    const dismiss = () => setCardPos(null);
+    window.addEventListener('scroll', dismiss, true);
+    return () => window.removeEventListener('scroll', dismiss, true);
+  }, [cardPos]);
+
+  const sortedModalities = Array.from(modalities).sort();
+
+  const card = cardPos && createPortal(
+    <div
+      className="pointer-events-none"
+      style={{
+        position: 'fixed',
+        left: cardPos.x,
+        top: cardPos.y - 10,
+        transform: 'translate(-50%, -100%)',
+        zIndex: 9999,
+      }}
+    >
+      <div className="bg-gray-900 text-white rounded-xl shadow-2xl overflow-hidden" style={{ minWidth: 190 }}>
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10">
+          <span style={{ backgroundColor: color, width: 10, height: 10, display: 'inline-block' }}
+            className="rounded-full flex-shrink-0 ring-1 ring-white/20" />
+          <span className="text-sm font-bold whitespace-nowrap">{assay}</span>
+        </div>
+        {sortedModalities.length > 0 && (
+          <div className="px-3 py-2">
+            <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Modalities</p>
+            {sortedModalities.map(m => (
+              <div key={m} className="flex items-center gap-1.5 text-xs text-gray-200 py-0.5">
+                <span className="w-1 h-1 rounded-full bg-gray-400 flex-shrink-0 inline-block" />
+                {m}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="flex justify-center">
+        <span className="border-[5px] border-transparent border-t-gray-900 inline-block" />
+      </div>
+    </div>,
+    document.body
+  );
+
+  return (
+    <span className="inline-flex" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+      <span
+        ref={dotRef}
+        style={{ backgroundColor: color, width: 14, height: 14, display: 'inline-block' }}
+        className="rounded-full flex-shrink-0 cursor-default ring-1 ring-black/10"
+        aria-label={assay}
+      />
+      {card}
+    </span>
+  );
+};
+
+// Row of dots — one dot per assay, aggregated from a Map<assay, Set<modality>>
+const AssayDots: FC<{ assayMap: Map<string, Set<string>>; colorMap: Map<string, string> }> = ({ assayMap, colorMap }) => {
+  if (assayMap.size === 0) return <span className="text-gray-400 text-xs">—</span>;
+  return (
+    <div className="flex flex-wrap gap-1.5 items-center">
+      {Array.from(assayMap.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([assay, modalities]) => (
+        <AssayDot key={assay} assay={assay} modalities={modalities} color={colorMap.get(assay) ?? '#888888'} />
+      ))}
+    </div>
+  );
+};
 
 type TaxonomySelectionProps = {
   nightMode: boolean;
@@ -204,6 +344,36 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
     });
   };
 
+  const toggleAllGroupsInSubclass = (
+    neighborhoodIndex: number,
+    classIndex: number,
+    subclassIndex: number
+  ) => {
+    setTaxonomyData(prev => {
+      const newData = [...prev];
+      const groups = newData[neighborhoodIndex].classes[classIndex].subclasses[subclassIndex].groups;
+      const allSelected = groups.length > 0 && groups.every(g => g.isSelected);
+      const nextSelected = !allSelected;
+
+      newData[neighborhoodIndex] = {
+        ...newData[neighborhoodIndex],
+        classes: newData[neighborhoodIndex].classes.map((c, ci) =>
+          ci === classIndex
+            ? {
+                ...c,
+                subclasses: c.subclasses.map((s, si) =>
+                  si === subclassIndex
+                    ? { ...s, groups: s.groups.map(g => ({ ...g, isSelected: nextSelected })) }
+                    : s
+                ),
+              }
+            : c
+        ),
+      };
+      return newData;
+    });
+  };
+
   // Toggle subclass selection
   const toggleSubclassSelection = (
     neighborhoodIndex: number,
@@ -233,6 +403,146 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
     });
   };
 
+  // Count all selected subclasses and groups
+  const selectionCounts = useMemo(() => {
+    let subclasses = 0;
+    let groups = 0;
+    taxonomyData.forEach(n => {
+      n.classes.forEach(c => {
+        c.subclasses.forEach(s => {
+          if (s.isSelected) subclasses++;
+          s.groups.forEach(g => {
+            if (g.isSelected) groups++;
+          });
+        });
+      });
+    });
+    return { subclasses, groups, total: subclasses + groups };
+  }, [taxonomyData]);
+
+  const selectAll = () => {
+    setTaxonomyData(prev => prev.map(n => ({
+      ...n,
+      classes: n.classes.map(c => ({
+        ...c,
+        subclasses: c.subclasses.map(s => ({
+          ...s,
+          isSelected: true,
+          groups: s.groups.map(g => ({ ...g, isSelected: true }))
+        }))
+      }))
+    })));
+  };
+
+  const clearAll = () => {
+    setTaxonomyData(prev => prev.map(n => ({
+      ...n,
+      classes: n.classes.map(c => ({
+        ...c,
+        subclasses: c.subclasses.map(s => ({
+          ...s,
+          isSelected: false,
+          groups: s.groups.map(g => ({ ...g, isSelected: false }))
+        }))
+      }))
+    })));
+  };
+
+  const allExpanded = useMemo(() =>
+    taxonomyData.length > 0 && taxonomyData.every(n =>
+      n.isExpanded &&
+      n.classes.every(c => c.isExpanded && c.subclasses.every(s => s.isExpanded))
+    ),
+  [taxonomyData]);
+
+  const expandAll = () => {
+    setTaxonomyData(prev => prev.map(n => ({
+      ...n,
+      isExpanded: true,
+      classes: n.classes.map(c => ({
+        ...c,
+        isExpanded: true,
+        subclasses: c.subclasses.map(s => ({ ...s, isExpanded: true }))
+      }))
+    })));
+  };
+
+  const collapseAll = () => {
+    setTaxonomyData(prev => prev.map(n => ({
+      ...n,
+      isExpanded: false,
+      classes: n.classes.map(c => ({
+        ...c,
+        isExpanded: false,
+        subclasses: c.subclasses.map(s => ({ ...s, isExpanded: false }))
+      }))
+    })));
+  };
+
+  // ── Assay availability ────────────────────────────────────────────────────
+  const allTracks = useMemo(() => parseTracksData(), []);
+
+  const assayData = useMemo(() => {
+    // 1. Collect all unique assays and assign one color each
+    const assaySet = new Set<string>();
+    allTracks.forEach(t => { if (t.metadata.assay) assaySet.add(t.metadata.assay); });
+    const sortedAssays = Array.from(assaySet).sort();
+    const colorMap = new Map<string, string>();
+    sortedAssays.forEach((assay, i) => colorMap.set(assay, OKABE_ITO[i % OKABE_ITO.length]));
+
+    // 2. Build per-group and per-subclass lookup: name → Map<assay, Set<modality>>
+    type AssayModalityMap = Map<string, Set<string>>;
+    const byGroup = new Map<string, AssayModalityMap>();
+    const bySubclass = new Map<string, AssayModalityMap>();
+
+    const addToMap = (outer: Map<string, AssayModalityMap>, key: string, assay: string, modality: string) => {
+      if (!outer.has(key)) outer.set(key, new Map());
+      const inner = outer.get(key)!;
+      if (!inner.has(assay)) inner.set(assay, new Set());
+      if (modality) inner.get(assay)!.add(modality);
+    };
+
+    allTracks.forEach(t => {
+      const assay = t.metadata.assay;
+      if (!assay) return;
+      const modality = t.metadata.modality ?? '';
+      if (t.metadata.group) addToMap(byGroup, t.metadata.group, assay, modality);
+      if (t.metadata.subclass) addToMap(bySubclass, t.metadata.subclass, assay, modality);
+    });
+
+    return { colorMap, byGroup, bySubclass, sortedAssays };
+  }, [allTracks]);
+
+  // Aggregate to class and neighborhood level using full taxonomy tree
+  const aggregatedAssayData = useMemo(() => {
+    type AssayModalityMap = Map<string, Set<string>>;
+
+    const mergeInto = (target: AssayModalityMap, source: AssayModalityMap) => {
+      source.forEach((modalities, assay) => {
+        if (!target.has(assay)) target.set(assay, new Set());
+        modalities.forEach(m => target.get(assay)!.add(m));
+      });
+    };
+
+    const byClass = new Map<string, AssayModalityMap>();
+    const byNeighborhood = new Map<string, AssayModalityMap>();
+
+    taxonomyData.forEach(n => {
+      const nMap: AssayModalityMap = new Map();
+      n.classes.forEach(c => {
+        const cMap: AssayModalityMap = new Map();
+        c.subclasses.forEach(s => {
+          const sMap = assayData.bySubclass.get(s.subclass);
+          if (sMap) { mergeInto(cMap, sMap); mergeInto(nMap, sMap); }
+        });
+        byClass.set(c.class, cMap);
+      });
+      byNeighborhood.set(n.neighborhood, nMap);
+    });
+    return { byClass, byNeighborhood };
+  }, [assayData, taxonomyData]);
+  // ──────────────────────────────────────────────────────────────────────────
+
   const displayData = filteredData;
 
   return (
@@ -250,6 +560,122 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
             Select cell types for visualization. Click to expand hierarchical levels, then select subclasses or groups.
           </p>
         </div>
+      </div>
+
+      {/* Selection controls + Assay legend — side by side */}
+      <div className={`rounded-2xl shadow-lg flex flex-col sm:flex-row overflow-hidden ${
+        nightMode ? 'bg-gray-900/50 border border-gray-700' : 'bg-white border border-gray-200'
+      }`}>
+        {/* Selection counter + bulk action buttons */}
+        <div className={`flex flex-col gap-3 px-5 py-4 flex-shrink-0 border-b sm:border-b-0 sm:border-r ${
+          nightMode ? 'border-gray-700' : 'border-gray-200'
+        }`}>
+          {/* Title */}
+          <p className={`text-xs font-semibold uppercase tracking-wider ${nightMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            Selection Controls
+          </p>
+          {/* Counter row */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-xs font-medium ${nightMode ? 'text-gray-400' : 'text-gray-500'}`}>
+              Selected:
+            </span>
+            {selectionCounts.total === 0 ? (
+              <span className={`text-xs ${nightMode ? 'text-gray-500' : 'text-gray-400'}`}>— None</span>
+            ) : (
+              <>
+                {selectionCounts.subclasses > 0 && (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary-500 text-white">
+                    {selectionCounts.subclasses} subclass{selectionCounts.subclasses !== 1 ? 'es' : ''}
+                  </span>
+                )}
+                {selectionCounts.groups > 0 && (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-science-500 text-white">
+                    {selectionCounts.groups} group{selectionCounts.groups !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+          {/* Button row */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={allExpanded ? collapseAll : expandAll}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                nightMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+              } shadow-sm hover:shadow-md`}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {allExpanded
+                  ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
+                  : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                }
+              </svg>
+              {allExpanded ? 'Collapse All' : 'Expand All'}
+            </button>
+            <div className={`w-px h-4 ${nightMode ? 'bg-gray-600' : 'bg-gray-300'}`} />
+            <button
+              onClick={selectAll}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                nightMode ? 'bg-primary-700 hover:bg-primary-600 text-white' : 'bg-primary-500 hover:bg-primary-600 text-white'
+              } shadow-sm hover:shadow-md`}
+            >
+              Select All
+            </button>
+            <button
+              onClick={clearAll}
+              disabled={selectionCounts.total === 0}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                selectionCounts.total === 0
+                  ? 'opacity-40 cursor-not-allowed ' + (nightMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500')
+                  : nightMode
+                    ? 'bg-gray-700 hover:bg-gray-600 text-gray-200 shadow-sm hover:shadow-md'
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700 shadow-sm hover:shadow-md'
+              }`}
+            >
+              Clear All
+            </button>
+          </div>
+        </div>
+
+        {/* Assay legend */}
+        {assayData.sortedAssays.length > 0 && (
+          <div className="flex-1 px-6 py-4 flex flex-col items-center justify-center">
+            <p className={`text-xs font-semibold uppercase tracking-wider mb-3 ${nightMode ? 'text-gray-400' : 'text-gray-500'}`}>
+              Assay Legend
+            </p>
+            <div className="flex flex-wrap justify-center gap-x-8 gap-y-2">
+              {assayData.sortedAssays.map(assay => {
+                const color = assayData.colorMap.get(assay)!;
+                const allModalities = new Set<string>();
+                assayData.bySubclass.forEach(assayMap => {
+                  (assayMap.get(assay) ?? new Set()).forEach(m => { if (m) allModalities.add(m); });
+                });
+                assayData.byGroup.forEach(assayMap => {
+                  (assayMap.get(assay) ?? new Set()).forEach(m => { if (m) allModalities.add(m); });
+                });
+                const sortedModalities = Array.from(allModalities).sort();
+                return (
+                  <div key={assay} className="flex items-start gap-2">
+                    <span
+                      style={{ backgroundColor: color, width: 10, height: 10, marginTop: 2 }}
+                      className="rounded-full flex-shrink-0 ring-1 ring-black/10 inline-block"
+                    />
+                    <div>
+                      <span className={`text-xs font-bold ${nightMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                        {assay}
+                      </span>
+                      {sortedModalities.map(m => (
+                        <p key={m} className={`text-[11px] leading-tight mt-0.5 ${nightMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          · {m}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Search Box */}
@@ -306,6 +732,11 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
                 }`}>
                   Select
                 </th>
+                <th className={`px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider w-16 ${
+                  nightMode ? 'text-gray-300' : 'text-gray-700'
+                }`}>
+                  Available Assays
+                </th>
               </tr>
             </thead>
             <tbody className={`${nightMode ? 'divide-gray-700' : 'divide-gray-300'}`}>
@@ -326,11 +757,17 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
                       <span className="inline-block w-4 text-center mr-2">
                         {neighborhood.isExpanded ? '▼' : '▶'}
                       </span>
-                      <span title={getTooltipText(neighborhood.neighborhood, 'neighborhood')}>
+                      <Tooltip text={getFullName(neighborhood.neighborhood, 'neighborhood')}>
                         {neighborhood.neighborhood}
-                      </span>
+                      </Tooltip>
                     </td>
                     <td className="px-4 py-3"></td>
+                    <td className="px-2 py-3">
+                      <AssayDots
+                        assayMap={aggregatedAssayData.byNeighborhood.get(neighborhood.neighborhood) ?? new Map()}
+                        colorMap={assayData.colorMap}
+                      />
+                    </td>
                   </tr>
 
                   {/* Classes under this Neighborhood */}
@@ -350,11 +787,17 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
                           <span className="inline-block w-4 text-center mr-2">
                             {classObj.isExpanded ? '▼' : '▶'}
                           </span>
-                          <span title={getTooltipText(classObj.class, 'class')}>
+                          <Tooltip text={getFullName(classObj.class, 'class')}>
                             {classObj.class}
-                          </span>
+                          </Tooltip>
                         </td>
                         <td className="px-4 py-3"></td>
+                        <td className="px-2 py-3">
+                          <AssayDots
+                            assayMap={aggregatedAssayData.byClass.get(classObj.class) ?? new Map()}
+                            colorMap={assayData.colorMap}
+                          />
+                        </td>
                       </tr>
 
                       {/* Subclasses under this Class */}
@@ -374,24 +817,54 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
                               <span className="inline-block w-4 text-center mr-2">
                                 {subclass.isExpanded ? '▼' : '▶'}
                               </span>
-                              <span title={getTooltipText(subclass.subclass, 'subclass')}>{subclass.subclass}</span>
+                              <Tooltip text={getFullName(subclass.subclass, 'subclass')}>{subclass.subclass}</Tooltip>
                             </td>
                             <td className="px-4 py-3">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleSubclassSelection(nIndex, cIndex, sIndex);
-                                }}
-                                className={`min-w-[100px] px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                                  subclass.isSelected
-                                    ? 'bg-primary-500 text-white shadow-md'
-                                    : nightMode
-                                    ? 'bg-science-700 text-science-300 hover:bg-science-600'
-                                    : 'bg-science-200 text-science-700 hover:bg-science-300'
-                                }`}
-                              >
-                                {subclass.isSelected ? 'Selected ✓' : 'Select'}
-                              </button>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleSubclassSelection(nIndex, cIndex, sIndex);
+                                  }}
+                                  className={`min-w-[100px] px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                    subclass.isSelected
+                                      ? 'bg-primary-500 text-white shadow-md'
+                                      : nightMode
+                                      ? 'bg-science-700 text-science-300 hover:bg-science-600'
+                                      : 'bg-science-200 text-science-700 hover:bg-science-300'
+                                  }`}
+                                >
+                                  {subclass.isSelected ? 'Selected ✓' : 'Select'}
+                                </button>
+                                {subclass.groups.length > 0 && (() => {
+                                  const allGroupsSelected = subclass.groups.every(g => g.isSelected);
+                                  return (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleAllGroupsInSubclass(nIndex, cIndex, sIndex);
+                                      }}
+                                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+                                        allGroupsSelected
+                                          ? nightMode
+                                            ? 'bg-amber-700 hover:bg-amber-600 text-white shadow-md'
+                                            : 'bg-amber-500 hover:bg-amber-600 text-white shadow-md'
+                                          : nightMode
+                                          ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                      }`}
+                                    >
+                                      {allGroupsSelected ? 'Deselect All Groups' : 'Select All Groups'}
+                                    </button>
+                                  );
+                                })()}
+                              </div>
+                            </td>
+                            <td className="px-2 py-3">
+                              <AssayDots
+                                assayMap={assayData.bySubclass.get(subclass.subclass) ?? new Map()}
+                                colorMap={assayData.colorMap}
+                              />
                             </td>
                           </tr>
 
@@ -408,7 +881,7 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
                               }`}
                             >
                               <td className={`px-4 py-3 pl-28 text-sm ${nightMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                                <span title={getTooltipText(group.group, 'group')}>{group.group}</span>
+                                <Tooltip text={getFullName(group.group, 'group')}>{group.group}</Tooltip>
                               </td>
                               <td className="px-4 py-3">
                                 <button
@@ -427,6 +900,12 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
                                   {group.isSelected ? 'Selected ✓' : 'Select'}
                                 </button>
                               </td>
+                              <td className="px-2 py-3">
+                                <AssayDots
+                                  assayMap={assayData.byGroup.get(group.group) ?? new Map()}
+                                  colorMap={assayData.colorMap}
+                                />
+                              </td>
                             </tr>
                           );})}
                         </React.Fragment>
@@ -440,48 +919,139 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
         </div>
       </div>
 
-      {/* Dataset Selector */}
-      <div className={`rounded-2xl shadow-lg p-4 ${
+      {/* Dataset + Region Distribution Panel */}
+      <div className={`rounded-2xl shadow-xl overflow-hidden ${
         nightMode ? 'bg-gray-900/50 border border-gray-700' : 'bg-white border border-gray-200'
       }`}>
-        <label className={`block text-sm font-medium mb-2 ${nightMode ? 'text-gray-300' : 'text-gray-700'}`}>
-          Dataset
-        </label>
-        <p className={`text-xs mb-3 ${nightMode ? 'text-gray-400' : 'text-gray-500'}`}>
-          Select the dataset for region distribution calculation
-        </p>
-        <select
-          value={assayType}
-          onChange={(e) => setAssayType(e.target.value as AssayType)}
-          className={`w-full px-4 py-3 rounded-lg text-sm transition-colors ${
-            nightMode 
-              ? 'bg-gray-800 border-gray-600 text-gray-100 focus:border-blue-500' 
-              : 'bg-gray-50 border-gray-300 text-gray-900 focus:border-blue-500'
-          } border focus:outline-none focus:ring-2 focus:ring-blue-500/50`}
-        >
-          <option value="HMBA">HMBA 10X Multiome</option>
-          <option value="PairedTag">BG_PairedTag</option>
-          <option value="snm3c">BG_snm3C-seq</option>
-        </select>
-      </div>
+        {/* Panel header */}
+        <div className={`px-6 py-4 border-b ${nightMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${nightMode ? 'bg-blue-900/50' : 'bg-blue-100'}`}>
+              <svg className={`w-4 h-4 ${nightMode ? 'text-blue-300' : 'text-blue-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className={`text-lg font-semibold ${nightMode ? 'text-gray-100' : 'text-gray-900'}`}>
+                Region Distribution Analysis
+              </h3>
+              <p className={`text-sm ${nightMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                Cell harvest breakdown by brain region for your current taxonomy selections
+              </p>
+            </div>
+          </div>
+        </div>
 
-      {/* Region Distribution Visualizations */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Subclass Region Distribution */}
-        <RegionDistributionChart 
-          regionDistribution={subclassRegionDistribution}
-          nightMode={nightMode}
-          title="Subclass Region Distribution"
-          description="Cell count distribution for selected subclasses"
-        />
-        
-        {/* Group Region Distribution */}
-        <RegionDistributionChart 
-          regionDistribution={groupRegionDistribution}
-          nightMode={nightMode}
-          title="Group Region Distribution"
-          description="Cell count distribution for selected groups"
-        />
+        <div className="p-6 space-y-6">
+          {/* Dataset Selector row */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <label className={`text-sm font-semibold whitespace-nowrap ${nightMode ? 'text-gray-300' : 'text-gray-700'}`}>
+              Dataset:
+            </label>
+            <select
+              value={assayType}
+              onChange={(e) => setAssayType(e.target.value as AssayType)}
+              className={`flex-1 px-4 py-2.5 rounded-lg text-sm transition-colors ${
+                nightMode
+                  ? 'bg-gray-800 border-gray-600 text-gray-100 focus:border-blue-500'
+                  : 'bg-gray-50 border-gray-300 text-gray-900 focus:border-blue-500'
+              } border focus:outline-none focus:ring-2 focus:ring-blue-500/50`}
+            >
+              <option value="HMBA">HMBA 10X Multiome</option>
+              <option value="PairedTag">BG_PairedTag</option>
+              <option value="snm3c">BG_snm3C-seq</option>
+            </select>
+          </div>
+
+          {/* Summary prose */}
+          {(() => {
+            const datasetLabel = assayType === 'HMBA' ? 'HMBA 10X Multiome' : assayType === 'PairedTag' ? 'BG_PairedTag' : 'BG_snm3C-seq';
+            const subTotal = Object.values(subclassRegionDistribution).reduce((s, n) => s + n, 0);
+            const grpTotal = Object.values(groupRegionDistribution).reduce((s, n) => s + n, 0);
+            const hasSubclass = selectionCounts.subclasses > 0 && subTotal > 0;
+            const hasGroup = selectionCounts.groups > 0 && grpTotal > 0;
+
+            const top3 = (dist: Record<string, number>) =>
+              Object.entries(dist)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3);
+
+            if (!hasSubclass && !hasGroup) {
+              return (
+                <div className={`flex items-start gap-3 p-4 rounded-xl ${
+                  nightMode ? 'bg-gray-800/60 border border-gray-700' : 'bg-blue-50 border border-blue-100'
+                }`}>
+                  <svg className={`w-5 h-5 mt-0.5 flex-shrink-0 ${nightMode ? 'text-blue-400' : 'text-blue-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className={`text-sm ${nightMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                    No subclasses or groups are selected yet. Use the taxonomy table above to select cell types, then this panel will show how many cells were harvested from each brain region in the <strong>{datasetLabel}</strong> dataset.
+                  </p>
+                </div>
+              );
+            }
+
+            const lines: React.ReactNode[] = [];
+
+            if (hasSubclass) {
+              const regions = Object.keys(subclassRegionDistribution).length;
+              const topRegions = top3(subclassRegionDistribution);
+              const topStr = topRegions.map(([r, c]) => `${r} (${c.toLocaleString()} cells)`).join(', ');
+              lines.push(
+                <span key="sub">
+                  The <strong>{selectionCounts.subclasses} selected subclass{selectionCounts.subclasses !== 1 ? 'es' : ''}</strong> account for{' '}
+                  <strong>{subTotal.toLocaleString()} cells</strong> harvested from <strong>{regions} brain region{regions !== 1 ? 's' : ''}</strong>.
+                  {topRegions.length > 0 && <> The top contributor{topRegions.length > 1 ? 's are' : ' is'} {topStr}.</>}
+                </span>
+              );
+            }
+
+            if (hasGroup) {
+              const regions = Object.keys(groupRegionDistribution).length;
+              const topRegions = top3(groupRegionDistribution);
+              const topStr = topRegions.map(([r, c]) => `${r} (${c.toLocaleString()} cells)`).join(', ');
+              lines.push(
+                <span key="grp">
+                  The <strong>{selectionCounts.groups} selected group{selectionCounts.groups !== 1 ? 's' : ''}</strong> account for{' '}
+                  <strong>{grpTotal.toLocaleString()} cells</strong> across <strong>{regions} brain region{regions !== 1 ? 's' : ''}</strong>.
+                  {topRegions.length > 0 && <> The top contributor{topRegions.length > 1 ? 's are' : ' is'} {topStr}.</>}
+                </span>
+              );
+            }
+
+            return (
+              <div className={`flex items-start gap-3 p-4 rounded-xl ${
+                nightMode ? 'bg-gray-800/60 border border-gray-700' : 'bg-blue-50 border border-blue-100'
+              }`}>
+                <svg className={`w-5 h-5 mt-0.5 flex-shrink-0 ${nightMode ? 'text-blue-400' : 'text-blue-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className={`text-sm space-y-1 ${nightMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  <p className={`font-semibold text-xs uppercase tracking-wider mb-1 ${nightMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {datasetLabel}
+                  </p>
+                  {lines.map((line, i) => <p key={i}>{line}</p>)}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <RegionDistributionChart
+              regionDistribution={subclassRegionDistribution}
+              nightMode={nightMode}
+              title="Subclass Region Distribution"
+              description="Cell count distribution for selected subclasses"
+            />
+            <RegionDistributionChart
+              regionDistribution={groupRegionDistribution}
+              nightMode={nightMode}
+              title="Group Region Distribution"
+              description="Cell count distribution for selected groups"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Allen Brain Atlas Section */}
