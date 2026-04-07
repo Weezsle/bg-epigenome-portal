@@ -136,6 +136,22 @@ function App() {
     setCurrentTab('taxonomy');
   }, []);
 
+  // Large selection warning before opening browser
+  const TRACK_WARNING_THRESHOLD = 30;
+  const [pendingBrowserNav, setPendingBrowserNav] = useState(false);
+
+  const handleTabChange = useCallback((tab: string) => {
+    if (tab === 'browser' && selectedTracks.length > TRACK_WARNING_THRESHOLD) {
+      setPendingBrowserNav(true);
+      return;
+    }
+    setCurrentTab(tab as TabId);
+  }, [selectedTracks.length]);
+
+  const confirmBrowserNav = useCallback(() => {
+    setPendingBrowserNav(false);
+    setCurrentTab('browser');
+  }, []);
 
   // Check if this is first visit and show guide
   useEffect(() => {
@@ -224,7 +240,7 @@ function App() {
           onReset={handleReset}
           tabs={tabs}
           currentTab={currentTab}
-          onTabChange={(tab) => setCurrentTab(tab as TabId)}
+          onTabChange={handleTabChange}
         />
 
         {/* Browser and scAnalysis tabs use full width and maximize vertical space */}
@@ -265,7 +281,7 @@ function App() {
                   nightMode={nightMode} 
                   trackStates={trackStates}
                   setTrackStates={setTrackStates}
-                  onNextStep={() => setCurrentTab('browser')}
+                  onNextStep={() => handleTabChange('browser')}
                 />
               )}
               {currentTab === 'dataset' && <DatasetOverview nightMode={nightMode} />}
@@ -323,6 +339,57 @@ function App() {
 
         {/* Cookie Banner */}
         <CookieBanner nightMode={nightMode} />
+
+        {/* Large track selection warning modal */}
+        {pendingBrowserNav && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className={`mx-4 max-w-md w-full rounded-2xl shadow-2xl p-6 space-y-4 ${
+              nightMode ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-900'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  nightMode ? 'bg-amber-500/20' : 'bg-amber-100'
+                }`}>
+                  <svg className={`w-5 h-5 ${nightMode ? 'text-amber-400' : 'text-amber-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold">Large Number of Tracks</h3>
+              </div>
+
+              <p className={`text-sm leading-relaxed ${nightMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                You have <strong className={nightMode ? 'text-white' : 'text-gray-900'}>{selectedTracks.length} tracks</strong> selected.
+                Loading many tracks simultaneously may take a while and could cause the browser to become slow or unresponsive.
+              </p>
+              <p className={`text-sm leading-relaxed ${nightMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                For best performance, consider selecting fewer than {TRACK_WARNING_THRESHOLD} tracks at a time. You can always come back and load more.
+              </p>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={() => setPendingBrowserNav(false)}
+                  className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                    nightMode
+                      ? 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Go Back
+                </button>
+                <button
+                  onClick={confirmBrowserNav}
+                  className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                    nightMode
+                      ? 'bg-primary-600 text-white hover:bg-primary-500'
+                      : 'bg-primary-500 text-white hover:bg-primary-600'
+                  }`}
+                >
+                  Continue Anyway
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

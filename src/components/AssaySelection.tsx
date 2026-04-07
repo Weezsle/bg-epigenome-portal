@@ -1,4 +1,4 @@
-import React, { useMemo, useState, type FC } from 'react';
+import React, { useMemo, useState, useCallback, type FC } from 'react';
 import type { Track } from '../store/trackStore';
 import { getTooltipText } from '../utils/abbreviationLookup';
 
@@ -9,196 +9,384 @@ type AssaySelectionProps = {
   onNextStep?: () => void;
 };
 
-const AssaySelection: FC<AssaySelectionProps> = ({ 
-  nightMode, 
+type PageSize = 10 | 25 | 100 | 'all';
+
+type SortableColumn = 'subclass' | 'group' | 'assay' | 'modality' | 'source' | 'trackType' | 'description';
+type SortDirection = 'asc' | 'desc';
+type SortState = { column: SortableColumn; direction: SortDirection } | null;
+
+const SPECIES_ORDER: Record<string, number> = {
+  'hg38': 0,
+  'mm10': 1,
+  'rheMac10': 2,
+  'mCalJa1.2': 3,
+};
+
+function getTrackSortValue(track: Track, column: SortableColumn): string {
+  switch (column) {
+    case 'subclass': return track.metadata.subclass || '';
+    case 'group': return track.metadata.group || '';
+    case 'assay': return track.metadata.assay || '';
+    case 'modality': return track.metadata.modality || '';
+    case 'source': return track.metadata.source || '';
+    case 'trackType': return track.config.type || '';
+    case 'description': return track.metadata.description || '';
+  }
+}
+
+const PAGE_SIZE_OPTIONS: { value: PageSize; label: string }[] = [
+  { value: 10, label: '10' },
+  { value: 25, label: '25' },
+  { value: 100, label: '100' },
+  { value: 'all', label: 'All' },
+];
+
+const getReferenceLabel = (reference: string | undefined) => {
+  if (reference === 'hg38') return 'Human (hg38)';
+  if (reference === 'mm10') return 'Mouse (mm10)';
+  if (reference === 'rheMac10') return 'Macaque (rheMac10)';
+  if (reference === 'mCalJa1.2') return 'Marmoset (mCalJa1.2)';
+  return reference || 'Unknown';
+};
+
+const getTypeLabel = (type: string) => {
+  const typeLabels: Record<string, string> = {
+    'bw': 'BigWig',
+    'bigwig': 'BigWig',
+    'bedgraph': 'BedGraph',
+    'bed': 'BED',
+    'bigBed': 'BigBed',
+  };
+  return typeLabels[type] || type;
+};
+
+const getSpeciesColor = (ref: string | undefined, nightMode: boolean) => {
+  switch (ref) {
+    case 'hg38': return nightMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-800';
+    case 'mm10': return nightMode ? 'bg-orange-900/50 text-orange-300' : 'bg-orange-100 text-orange-800';
+    case 'rheMac10': return nightMode ? 'bg-teal-900/50 text-teal-300' : 'bg-teal-100 text-teal-800';
+    case 'mCalJa1.2': return nightMode ? 'bg-pink-900/50 text-pink-300' : 'bg-pink-100 text-pink-800';
+    default: return nightMode ? 'bg-gray-900/50 text-gray-300' : 'bg-gray-100 text-gray-800';
+  }
+};
+
+interface FilterState {
+  species: string[];
+  subclass: string[];
+  group: string[];
+  assay: string[];
+  trackType: string[];
+  modality: string[];
+  source: string[];
+}
+
+const EMPTY_FILTER: FilterState = {
+  species: [],
+  subclass: [],
+  group: [],
+  assay: [],
+  trackType: [],
+  modality: [],
+  source: [],
+};
+
+const FilterDropdown: FC<{
+  label: string;
+  options: string[];
+  selected: string[];
+  onChange: (values: string[]) => void;
+  nightMode: boolean;
+  renderLabel?: (value: string) => string;
+}> = ({ label, options, selected, onChange, nightMode, renderLabel }) => {
+  const [open, setOpen] = useState(false);
+
+  const toggle = (value: string) => {
+    if (selected.includes(value)) {
+      onChange(selected.filter(v => v !== value));
+    } else {
+      onChange([...selected, value]);
+    }
+  };
+
+  const clearThis = () => onChange([]);
+
+  const activeCount = selected.length;
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all border ${
+          activeCount > 0
+            ? nightMode
+              ? 'bg-primary-500/20 border-primary-500/40 text-primary-300'
+              : 'bg-primary-50 border-primary-300 text-primary-700'
+            : nightMode
+              ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+              : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+        }`}
+      >
+        <span>{label}</span>
+        {activeCount > 0 && (
+          <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
+            nightMode ? 'bg-primary-500 text-white' : 'bg-primary-500 text-white'
+          }`}>
+            {activeCount}
+          </span>
+        )}
+        <svg className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className={`absolute z-40 mt-1 w-64 max-h-72 overflow-y-auto rounded-xl shadow-xl border ${
+            nightMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+          }`}>
+            {activeCount > 0 && (
+              <div className={`sticky top-0 z-10 px-3 py-2 border-b ${
+                nightMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+              }`}>
+                <button
+                  onClick={clearThis}
+                  className={`text-xs font-medium ${
+                    nightMode ? 'text-red-400 hover:text-red-300' : 'text-red-600 hover:text-red-700'
+                  }`}
+                >
+                  Clear {label} filter
+                </button>
+              </div>
+            )}
+            {options.map(option => {
+              const isChecked = selected.includes(option);
+              const display = renderLabel ? renderLabel(option) : option;
+              return (
+                <label
+                  key={option}
+                  className={`flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-colors ${
+                    isChecked
+                      ? nightMode ? 'bg-primary-500/10' : 'bg-primary-50'
+                      : nightMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => toggle(option)}
+                    className="w-4 h-4 rounded cursor-pointer flex-shrink-0"
+                  />
+                  <span className={`text-sm truncate ${nightMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                    {display}
+                  </span>
+                </label>
+              );
+            })}
+            {options.length === 0 && (
+              <div className={`px-3 py-4 text-center text-sm ${nightMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                No options
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+const AssaySelection: FC<AssaySelectionProps> = ({
+  nightMode,
   trackStates,
   setTrackStates,
   onNextStep,
 }) => {
-  // Search query state
-  const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTER);
+  const [pageSize, setPageSize] = useState<PageSize>(25);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [sort, setSort] = useState<SortState>(null);
 
-  // Filter tracks based on search query
-  const filteredTracks = useMemo(() => {
-    if (!searchQuery.trim()) return trackStates;
-    
-    // Split search query into individual words
-    const searchWords = searchQuery.toLowerCase().split(/\s+/).filter(word => word.length > 0);
-    
-    return trackStates.filter(track => {
-      const searchableFields = [
-        track.metadata.subclass,
-        track.metadata.group,
-        track.metadata.assay,
-        track.metadata.modality,
-        track.metadata.source,
-        track.metadata.description,
-        track.metadata.reference,
-        track.config.name,
-        track.config.type,
-      ].filter(Boolean).map(f => f!.toLowerCase());
-      
-      // Combine all searchable fields into a single string for easier matching
-      const combinedText = searchableFields.join(' ');
-      
-      // Track matches if ALL search words are found in the combined text
-      return searchWords.every(word => combinedText.includes(word));
-    });
-  }, [trackStates, searchQuery]);
-
-  // Get indices of filtered tracks in the original trackStates array
-  const filteredIndices = useMemo(() => {
-    if (!searchQuery.trim()) return trackStates.map((_, i) => i);
-    
-    // Split search query into individual words
-    const searchWords = searchQuery.toLowerCase().split(/\s+/).filter(word => word.length > 0);
-    
-    return trackStates.reduce<number[]>((acc, track, i) => {
-      const searchableFields = [
-        track.metadata.subclass,
-        track.metadata.group,
-        track.metadata.assay,
-        track.metadata.modality,
-        track.metadata.source,
-        track.metadata.description,
-        track.metadata.reference,
-        track.config.name,
-        track.config.type,
-      ].filter(Boolean).map(f => f!.toLowerCase());
-      
-      // Combine all searchable fields into a single string for easier matching
-      const combinedText = searchableFields.join(' ');
-      
-      // Track matches if ALL search words are found in the combined text
-      if (searchWords.every(word => combinedText.includes(word))) {
-        acc.push(i);
+  const toggleSort = useCallback((column: SortableColumn) => {
+    setSort(prev => {
+      if (prev?.column === column) {
+        if (prev.direction === 'asc') return { column, direction: 'desc' };
+        return null; // third click clears sort
       }
+      return { column, direction: 'asc' };
+    });
+    setCurrentPage(1);
+  }, []);
+
+  const updateFilter = useCallback((key: keyof FilterState, values: string[]) => {
+    setFilters(prev => ({ ...prev, [key]: values }));
+    setCurrentPage(1);
+  }, []);
+
+  const clearAllFilters = useCallback(() => {
+    setFilters(EMPTY_FILTER);
+    setCurrentPage(1);
+  }, []);
+
+  const activeFilterCount = useMemo(() =>
+    Object.values(filters).reduce((sum, arr) => sum + arr.length, 0),
+  [filters]);
+
+  // Unique values for each filterable column
+  const uniqueValues = useMemo(() => {
+    const species = new Set<string>();
+    const subclass = new Set<string>();
+    const group = new Set<string>();
+    const assay = new Set<string>();
+    const trackType = new Set<string>();
+    const modality = new Set<string>();
+    const source = new Set<string>();
+
+    trackStates.forEach(t => {
+      if (t.metadata.reference) species.add(t.metadata.reference);
+      if (t.metadata.subclass) subclass.add(t.metadata.subclass);
+      if (t.metadata.group) group.add(t.metadata.group);
+      if (t.metadata.assay) assay.add(t.metadata.assay);
+      if (t.config.type) trackType.add(t.config.type);
+      if (t.metadata.modality) modality.add(t.metadata.modality);
+      if (t.metadata.source) source.add(t.metadata.source);
+    });
+
+    const speciesOrder = ['hg38', 'mm10', 'rheMac10', 'mCalJa1.2'];
+    return {
+      species: Array.from(species).sort((a, b) => speciesOrder.indexOf(a) - speciesOrder.indexOf(b)),
+      subclass: Array.from(subclass).sort(),
+      group: Array.from(group).sort(),
+      assay: Array.from(assay).sort(),
+      trackType: Array.from(trackType).sort(),
+      modality: Array.from(modality).sort(),
+      source: Array.from(source).sort(),
+    };
+  }, [trackStates]);
+
+  // Filtered indices (indices into trackStates that pass all filters)
+  const filteredIndices = useMemo(() => {
+    return trackStates.reduce<number[]>((acc, track, i) => {
+      if (filters.species.length > 0 && (!track.metadata.reference || !filters.species.includes(track.metadata.reference))) return acc;
+      if (filters.subclass.length > 0 && (!track.metadata.subclass || !filters.subclass.includes(track.metadata.subclass))) return acc;
+      if (filters.group.length > 0 && (!track.metadata.group || !filters.group.includes(track.metadata.group))) return acc;
+      if (filters.assay.length > 0 && (!track.metadata.assay || !filters.assay.includes(track.metadata.assay))) return acc;
+      if (filters.trackType.length > 0 && (!track.config.type || !filters.trackType.includes(track.config.type))) return acc;
+      if (filters.modality.length > 0 && (!track.metadata.modality || !filters.modality.includes(track.metadata.modality))) return acc;
+      if (filters.source.length > 0 && (!track.metadata.source || !filters.source.includes(track.metadata.source))) return acc;
+      acc.push(i);
       return acc;
     }, []);
-  }, [trackStates, searchQuery]);
+  }, [trackStates, filters]);
 
-  // Toggle individual track by its original index
+  // Sort filtered indices: always species-first, then by chosen column
+  const sortedFilteredIndices = useMemo(() => {
+    if (!sort) return filteredIndices;
+
+    return [...filteredIndices].sort((a, b) => {
+      const ta = trackStates[a];
+      const tb = trackStates[b];
+
+      // Primary: species order (always ascending to keep species blocks together)
+      const specA = SPECIES_ORDER[ta.metadata.reference || ''] ?? 9999;
+      const specB = SPECIES_ORDER[tb.metadata.reference || ''] ?? 9999;
+      if (specA !== specB) return specA - specB;
+
+      // Secondary: the selected column
+      const valA = getTrackSortValue(ta, sort.column).toLowerCase();
+      const valB = getTrackSortValue(tb, sort.column).toLowerCase();
+      const cmp = valA.localeCompare(valB);
+      return sort.direction === 'asc' ? cmp : -cmp;
+    });
+  }, [filteredIndices, trackStates, sort]);
+
+  // Pagination
+  const totalFiltered = sortedFilteredIndices.length;
+  const effectivePageSize = pageSize === 'all' ? totalFiltered : pageSize;
+  const totalPages = effectivePageSize > 0 ? Math.ceil(totalFiltered / effectivePageSize) : 1;
+  const safePage = Math.min(currentPage, totalPages);
+
+  const pagedIndices = useMemo(() => {
+    if (pageSize === 'all') return sortedFilteredIndices;
+    const start = (safePage - 1) * (pageSize as number);
+    return sortedFilteredIndices.slice(start, start + (pageSize as number));
+  }, [sortedFilteredIndices, safePage, pageSize]);
+
+  // Selection helpers
   const toggleTrack = (originalIndex: number) => {
-    setTrackStates(prev => 
-      prev.map((track, i) => 
+    setTrackStates(prev =>
+      prev.map((track, i) =>
         i === originalIndex ? { ...track, selected: !track.selected } : track
       )
     );
   };
 
-  // Select all tracks
-  const selectAll = () => {
-    setTrackStates(prev => prev.map(track => ({ ...track, selected: true })));
-  };
-
-  // Deselect all tracks
-  const deselectAll = () => {
-    setTrackStates(prev => prev.map(track => ({ ...track, selected: false })));
-  };
-
-  // Select all filtered tracks
   const selectAllFiltered = () => {
     const filteredSet = new Set(filteredIndices);
-    setTrackStates(prev => 
-      prev.map((track, i) => 
+    setTrackStates(prev =>
+      prev.map((track, i) =>
         filteredSet.has(i) ? { ...track, selected: true } : track
       )
     );
   };
 
-  // Deselect all filtered tracks
   const deselectAllFiltered = () => {
     const filteredSet = new Set(filteredIndices);
-    setTrackStates(prev => 
-      prev.map((track, i) => 
+    setTrackStates(prev =>
+      prev.map((track, i) =>
         filteredSet.has(i) ? { ...track, selected: false } : track
       )
     );
   };
 
-  // Toggle all visible (filtered) tracks
   const toggleAllFiltered = () => {
-    const allFilteredSelected = filteredTracks.every(track => track.selected);
+    const allFilteredSelected = filteredIndices.every(i => trackStates[i].selected);
     const filteredSet = new Set(filteredIndices);
-    setTrackStates(prev => 
-      prev.map((track, i) => 
+    setTrackStates(prev =>
+      prev.map((track, i) =>
         filteredSet.has(i) ? { ...track, selected: !allFilteredSelected } : track
       )
     );
   };
 
-  // Batch select by assay
-  const selectByAssay = (assay: string) => {
-    setTrackStates(prev => 
-      prev.map(track => 
-        track.metadata.assay === assay ? { ...track, selected: true } : track
-      )
+  const selectedCount = trackStates.filter(t => t.selected).length;
+  const filteredSelectedCount = filteredIndices.filter(i => trackStates[i].selected).length;
+
+  // TSV download of selected tracks
+  const downloadSelectedTSV = useCallback(() => {
+    const selectedTracks = trackStates.filter(t => t.selected);
+    if (selectedTracks.length === 0) return;
+
+    const header = ['Species', 'Subclass', 'Group', 'Assay', 'Modality', 'Source', 'Track Type', 'Name', 'Description', 'URL'].join('\t');
+    const rows = selectedTracks.map(t =>
+      [
+        t.metadata.reference || '',
+        t.metadata.subclass || '',
+        t.metadata.group || '',
+        t.metadata.assay || '',
+        t.metadata.modality || '',
+        t.metadata.source || '',
+        t.config.type || '',
+        t.config.name || '',
+        t.metadata.description || '',
+        t.config.url || '',
+      ].join('\t')
     );
-  };
 
-  // Batch select by modality
-  const selectByModality = (modality: string) => {
-    setTrackStates(prev => 
-      prev.map(track => 
-        track.metadata.modality === modality ? { ...track, selected: true } : track
-      )
-    );
-  };
-
-  // Batch select by species (reference)
-  const selectBySpecies = (reference: string) => {
-    setTrackStates(prev => 
-      prev.map(track => 
-        track.metadata.reference === reference ? { ...track, selected: true } : track
-      )
-    );
-  };
-
-  // Get unique values for batch selection
-  const uniqueAssays = useMemo(() => {
-    const assays = new Set(trackStates.map(t => t.metadata.assay).filter(Boolean));
-    return Array.from(assays).sort();
+    const tsv = [header, ...rows].join('\n');
+    const blob = new Blob([tsv], { type: 'text/tab-separated-values;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bge_selected_tracks_${new Date().toISOString().slice(0, 10)}.tsv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }, [trackStates]);
-
-  const uniqueModalities = useMemo(() => {
-    const modalities = new Set(trackStates.map(t => t.metadata.modality).filter(Boolean));
-    return Array.from(modalities).sort();
-  }, [trackStates]);
-
-  const uniqueSpecies = useMemo(() => {
-    const species = new Set(trackStates.map(t => t.metadata.reference).filter(Boolean));
-    return Array.from(species).sort((a, b) => {
-      // Sort by species order: hg38, mm10, rheMac10, mCalJa1.2
-      const order = ['hg38', 'mm10', 'rheMac10', 'mCalJa1.2'];
-      return order.indexOf(a) - order.indexOf(b);
-    });
-  }, [trackStates]);
-
-  // Get reference label
-  const getReferenceLabel = (reference: string | undefined) => {
-    if (reference === 'hg38') return 'Human (hg38)';
-    if (reference === 'mm10') return 'Mouse (mm10)';
-    if (reference === 'rheMac10') return 'Macaque (rheMac10)';
-    if (reference === 'mCalJa1.2') return 'Marmoset (mCalJa1.2)';
-    return reference || 'Unknown';
-  };
-
-  // Get track type label
-  const getTypeLabel = (type: string) => {
-    const typeLabels: Record<string, string> = {
-      'bw': 'BigWig',
-      'bedgraph': 'BedGraph',
-      'bed': 'BED',
-      'bigBed': 'BigBed',
-    };
-    return typeLabels[type] || type;
-  };
-
-  const selectedCount = trackStates.filter(track => track.selected).length;
 
   return (
     <div className={`space-y-6 ${nightMode ? 'text-gray-200' : 'text-gray-800'}`}>
-      {/* Header Section */}
+      {/* Header */}
       <div className="rounded-2xl shadow-xl p-8 gradient-science text-white relative overflow-hidden">
         <div className="absolute inset-0 opacity-10 pattern-neural" />
         <div className="relative z-10">
@@ -209,236 +397,172 @@ const AssaySelection: FC<AssaySelectionProps> = ({
           </div>
           <h3 className="text-2xl md:text-3xl font-bold tracking-tight">Filtered Tracks</h3>
           <p className="text-base text-white/80 mt-2 leading-relaxed max-w-2xl">
-            Tracks filtered and sorted by species (human → mouse → macaque → marmoset), then by subclass → group → assay → source. 
-            Check tracks to show in the genome browser.
+            Use column filters to narrow tracks by species, subclass, group, assay, modality, track type, or source.
+            Select tracks to show in the genome browser, then download your selection as TSV.
           </p>
         </div>
       </div>
 
-      {/* Search and Controls */}
-      <div className={`rounded-2xl shadow-xl p-6 ${
+      {/* Filter + Controls panel */}
+      <div className={`rounded-2xl shadow-xl p-6 space-y-4 ${
         nightMode ? 'card-science-dark' : 'card-science'
       }`}>
-        <div className="space-y-4">
-          {/* Stats Row */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <h4 className={`text-lg font-semibold ${nightMode ? 'text-white' : 'text-science-900'}`}>
-              Available Tracks
-            </h4>
-            <div className="flex items-center gap-4">
-              <div className={`px-4 py-2 rounded-lg ${nightMode ? 'bg-science-800' : 'bg-science-100'}`}>
-                <span className={`text-2xl font-bold ${nightMode ? 'text-sky-400' : 'text-primary-600'}`}>
-                  {trackStates.length}
+        {/* Stats row */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <h4 className={`text-lg font-semibold ${nightMode ? 'text-white' : 'text-science-900'}`}>
+            Available Tracks
+          </h4>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className={`px-4 py-2 rounded-lg ${nightMode ? 'bg-science-800' : 'bg-science-100'}`}>
+              <span className={`text-2xl font-bold ${nightMode ? 'text-sky-400' : 'text-primary-600'}`}>
+                {trackStates.length}
+              </span>
+              <span className={`ml-2 text-sm ${nightMode ? 'text-science-400' : 'text-science-600'}`}>total</span>
+            </div>
+            {activeFilterCount > 0 && (
+              <div className={`px-4 py-2 rounded-lg ${nightMode ? 'bg-accent-500/20' : 'bg-accent-100'}`}>
+                <span className={`text-2xl font-bold ${nightMode ? 'text-accent-400' : 'text-accent-600'}`}>
+                  {totalFiltered}
                 </span>
-                <span className={`ml-2 text-sm ${nightMode ? 'text-science-400' : 'text-science-600'}`}>
-                  total
-                </span>
+                <span className={`ml-2 text-sm ${nightMode ? 'text-science-400' : 'text-science-600'}`}>filtered</span>
               </div>
-              {searchQuery && (
-                <div className={`px-4 py-2 rounded-lg ${nightMode ? 'bg-accent-500/20' : 'bg-accent-100'}`}>
-                  <span className={`text-2xl font-bold ${nightMode ? 'text-accent-400' : 'text-accent-600'}`}>
-                    {filteredTracks.length}
-                  </span>
-                  <span className={`ml-2 text-sm ${nightMode ? 'text-science-400' : 'text-science-600'}`}>
-                    filtered
-                  </span>
-                </div>
-              )}
-              <div className={`px-4 py-2 rounded-lg ${nightMode ? 'bg-success-500/20' : 'bg-success-100'}`}>
-                <span className={`text-2xl font-bold ${nightMode ? 'text-success-400' : 'text-success-600'}`}>
-                  {selectedCount}
-                </span>
-                <span className={`ml-2 text-sm ${nightMode ? 'text-science-400' : 'text-science-600'}`}>
-                  selected
-                </span>
-              </div>
+            )}
+            <div className={`px-4 py-2 rounded-lg ${nightMode ? 'bg-success-500/20' : 'bg-success-100'}`}>
+              <span className={`text-2xl font-bold ${nightMode ? 'text-success-400' : 'text-success-600'}`}>
+                {selectedCount}
+              </span>
+              <span className={`ml-2 text-sm ${nightMode ? 'text-science-400' : 'text-science-600'}`}>selected</span>
             </div>
           </div>
+        </div>
 
-          {/* Search Box */}
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search tracks by subclass, group, assay, modality, source, description..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className={`w-full px-4 py-3 pl-11 rounded-xl border transition-all ${
-                nightMode 
-                  ? 'bg-science-800 border-science-700 text-white placeholder-science-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500' 
-                  : 'bg-white border-science-300 text-science-900 placeholder-science-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500'
-              }`}
-            />
-            <svg 
-              className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 ${
-                nightMode ? 'text-science-500' : 'text-science-400'
-              }`}
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        {/* Filter dropdowns row */}
+        <div className={`p-4 rounded-xl border ${
+          nightMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'
+        }`}>
+          <div className="flex items-center gap-2 mb-3">
+            <svg className={`w-5 h-5 ${nightMode ? 'text-primary-400' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
             </svg>
-            {searchQuery && (
+            <span className={`text-sm font-semibold ${nightMode ? 'text-white' : 'text-gray-900'}`}>
+              Column Filters
+            </span>
+            {activeFilterCount > 0 && (
               <button
-                onClick={() => setSearchQuery('')}
-                className={`absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full transition-colors ${
-                  nightMode 
-                    ? 'text-science-400 hover:text-white hover:bg-science-700' 
-                    : 'text-science-400 hover:text-science-700 hover:bg-science-100'
+                onClick={clearAllFilters}
+                className={`ml-auto text-xs font-medium px-2.5 py-1 rounded-lg transition-colors ${
+                  nightMode ? 'text-red-400 hover:bg-red-500/10' : 'text-red-600 hover:bg-red-50'
                 }`}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                Clear all filters ({activeFilterCount})
               </button>
             )}
           </div>
-
-          {/* Batch Add Panel */}
-          <div className={`p-4 rounded-xl border ${
-            nightMode ? 'bg-science-800/50 border-science-700' : 'bg-science-50 border-science-200'
-          }`}>
-            <div className="flex items-center gap-2 mb-3">
-              <svg className={`w-5 h-5 ${nightMode ? 'text-primary-400' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              <span className={`text-sm font-semibold ${nightMode ? 'text-white' : 'text-science-900'}`}>
-                Batch Add by Category
-              </span>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* By Assay */}
-              <div className="space-y-2">
-                <label className={`text-xs font-medium ${nightMode ? 'text-science-400' : 'text-science-600'}`}>
-                  By Assay:
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {uniqueAssays.map(assay => (
-                    <button
-                      key={assay}
-                      onClick={() => selectByAssay(assay)}
-                      className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
-                        nightMode 
-                          ? 'bg-primary-500/20 text-primary-300 hover:bg-primary-500/30 border border-primary-500/30' 
-                          : 'bg-primary-100 text-primary-700 hover:bg-primary-200 border border-primary-200'
-                      }`}
-                      title={`Select all ${assay} tracks`}
-                    >
-                      {assay}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* By Modality */}
-              <div className="space-y-2">
-                <label className={`text-xs font-medium ${nightMode ? 'text-science-400' : 'text-science-600'}`}>
-                  By Modality:
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {uniqueModalities.map(modality => (
-                    <button
-                      key={modality}
-                      onClick={() => selectByModality(modality)}
-                      className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
-                        nightMode 
-                          ? 'bg-accent-500/20 text-accent-300 hover:bg-accent-500/30 border border-accent-500/30' 
-                          : 'bg-accent-100 text-accent-700 hover:bg-accent-200 border border-accent-200'
-                      }`}
-                      title={`Select all ${modality} tracks`}
-                    >
-                      {modality}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* By Species */}
-              <div className="space-y-2">
-                <label className={`text-xs font-medium ${nightMode ? 'text-science-400' : 'text-science-600'}`}>
-                  By Species:
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {uniqueSpecies.map(species => (
-                    <button
-                      key={species}
-                      onClick={() => selectBySpecies(species)}
-                      className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
-                        nightMode 
-                          ? 'bg-success-500/20 text-success-300 hover:bg-success-500/30 border border-success-500/30' 
-                          : 'bg-success-100 text-success-700 hover:bg-success-200 border border-success-200'
-                      }`}
-                      title={`Select all ${getReferenceLabel(species)} tracks`}
-                    >
-                      {getReferenceLabel(species)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+          <div className="flex flex-wrap gap-2">
+            <FilterDropdown
+              label="Species"
+              options={uniqueValues.species}
+              selected={filters.species}
+              onChange={(v) => updateFilter('species', v)}
+              nightMode={nightMode}
+              renderLabel={getReferenceLabel}
+            />
+            <FilterDropdown
+              label="Subclass"
+              options={uniqueValues.subclass}
+              selected={filters.subclass}
+              onChange={(v) => updateFilter('subclass', v)}
+              nightMode={nightMode}
+            />
+            <FilterDropdown
+              label="Group"
+              options={uniqueValues.group}
+              selected={filters.group}
+              onChange={(v) => updateFilter('group', v)}
+              nightMode={nightMode}
+            />
+            <FilterDropdown
+              label="Assay"
+              options={uniqueValues.assay}
+              selected={filters.assay}
+              onChange={(v) => updateFilter('assay', v)}
+              nightMode={nightMode}
+            />
+            <FilterDropdown
+              label="Track Type"
+              options={uniqueValues.trackType}
+              selected={filters.trackType}
+              onChange={(v) => updateFilter('trackType', v)}
+              nightMode={nightMode}
+              renderLabel={getTypeLabel}
+            />
+            <FilterDropdown
+              label="Modality"
+              options={uniqueValues.modality}
+              selected={filters.modality}
+              onChange={(v) => updateFilter('modality', v)}
+              nightMode={nightMode}
+            />
+            <FilterDropdown
+              label="Source"
+              options={uniqueValues.source}
+              selected={filters.source}
+              onChange={(v) => updateFilter('source', v)}
+              nightMode={nightMode}
+            />
           </div>
+        </div>
 
-          {/* Bulk Selection Controls */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`text-sm font-medium ${nightMode ? 'text-science-400' : 'text-science-600'}`}>
-              Selection:
-            </span>
-            <button
-              onClick={selectAll}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                nightMode 
-                  ? 'bg-primary-500/20 text-primary-400 hover:bg-primary-500/30' 
-                  : 'bg-primary-100 text-primary-700 hover:bg-primary-200'
-              }`}
-            >
-              Select All
-            </button>
-            <button
-              onClick={deselectAll}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                nightMode 
-                  ? 'bg-science-700 text-science-300 hover:bg-science-600' 
-                  : 'bg-science-200 text-science-700 hover:bg-science-300'
-              }`}
-            >
-              Deselect All
-            </button>
-            
-            {searchQuery && (
-              <>
-                <span className={`mx-2 ${nightMode ? 'text-science-600' : 'text-science-300'}`}>|</span>
-                <span className={`text-sm font-medium ${nightMode ? 'text-accent-400' : 'text-accent-600'}`}>
-                  Filtered ({filteredTracks.length}):
-                </span>
-                <button
-                  onClick={selectAllFiltered}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                    nightMode 
-                      ? 'bg-accent-500/20 text-accent-400 hover:bg-accent-500/30' 
-                      : 'bg-accent-100 text-accent-700 hover:bg-accent-200'
-                  }`}
-                >
-                  Select Filtered
-                </button>
-                <button
-                  onClick={deselectAllFiltered}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                    nightMode 
-                      ? 'bg-science-700 text-science-300 hover:bg-science-600' 
-                      : 'bg-science-200 text-science-700 hover:bg-science-300'
-                  }`}
-                >
-                  Deselect Filtered
-                </button>
-              </>
-            )}
-          </div>
+        {/* Selection + download controls */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`text-sm font-medium ${nightMode ? 'text-science-400' : 'text-science-600'}`}>
+            Filtered ({totalFiltered}):
+          </span>
+          <button
+            onClick={selectAllFiltered}
+            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+              nightMode
+                ? 'bg-primary-500/20 text-primary-400 hover:bg-primary-500/30'
+                : 'bg-primary-100 text-primary-700 hover:bg-primary-200'
+            }`}
+          >
+            Select All Filtered
+          </button>
+          <button
+            onClick={deselectAllFiltered}
+            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+              nightMode
+                ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Deselect All Filtered
+          </button>
+
+          <div className={`mx-2 w-px h-5 ${nightMode ? 'bg-gray-600' : 'bg-gray-300'}`} />
+
+          {/* Download */}
+          <button
+            onClick={downloadSelectedTSV}
+            disabled={selectedCount === 0}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+              selectedCount === 0
+                ? 'opacity-40 cursor-not-allowed ' + (nightMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-200 text-gray-400')
+                : nightMode
+                  ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+                  : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+            }`}
+            title={selectedCount === 0 ? 'Select tracks first' : `Download ${selectedCount} selected tracks as TSV`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Download TSV ({selectedCount})
+          </button>
         </div>
       </div>
 
-      {/* Tracks Table */}
+      {/* Table */}
       {trackStates.length === 0 ? (
         <div className={`rounded-2xl shadow-xl p-12 text-center ${
           nightMode ? 'bg-gray-900/50 border border-gray-700' : 'bg-white border border-gray-200'
@@ -447,11 +571,11 @@ const AssaySelection: FC<AssaySelectionProps> = ({
           <h3 className={`text-xl font-semibold mb-2 ${nightMode ? 'text-gray-100' : 'text-gray-900'}`}>
             No Tracks Found
           </h3>
-          <p className={`${nightMode ? 'text-gray-400' : 'text-gray-600'}`}>
+          <p className={nightMode ? 'text-gray-400' : 'text-gray-600'}>
             Please select cell types from the Taxonomy Selection tab to view available tracks.
           </p>
         </div>
-      ) : filteredTracks.length === 0 ? (
+      ) : totalFiltered === 0 ? (
         <div className={`rounded-2xl shadow-xl p-12 text-center ${
           nightMode ? 'bg-gray-900/50 border border-gray-700' : 'bg-white border border-gray-200'
         }`}>
@@ -459,24 +583,134 @@ const AssaySelection: FC<AssaySelectionProps> = ({
           <h3 className={`text-xl font-semibold mb-2 ${nightMode ? 'text-gray-100' : 'text-gray-900'}`}>
             No Matching Tracks
           </h3>
-          <p className={`${nightMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            No tracks match your search query "{searchQuery}". Try a different search term.
+          <p className={nightMode ? 'text-gray-400' : 'text-gray-600'}>
+            No tracks match your current filters. Try adjusting or clearing filters.
           </p>
           <button
-            onClick={() => setSearchQuery('')}
+            onClick={clearAllFilters}
             className={`mt-4 px-4 py-2 rounded-lg font-medium transition-colors ${
-              nightMode 
-                ? 'bg-primary-500 text-white hover:bg-primary-400' 
+              nightMode
+                ? 'bg-primary-500 text-white hover:bg-primary-400'
                 : 'bg-primary-600 text-white hover:bg-primary-700'
             }`}
           >
-            Clear Search
+            Clear All Filters
           </button>
         </div>
       ) : (
         <div className={`rounded-2xl shadow-xl overflow-hidden ${
           nightMode ? 'bg-gray-900/50 border border-gray-700' : 'bg-white border border-gray-200'
         }`}>
+          {/* Pagination header */}
+          <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-b ${
+            nightMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'
+          }`}>
+            <div className="flex items-center gap-3">
+              <span className={`text-sm ${nightMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Rows per page:
+              </span>
+              <div className="flex rounded-lg overflow-hidden border shadow-sm"
+                style={{ borderColor: nightMode ? '#374151' : '#d1d5db' }}>
+                {PAGE_SIZE_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => { setPageSize(opt.value); setCurrentPage(1); }}
+                    className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                      pageSize === opt.value
+                        ? nightMode
+                          ? 'bg-primary-600 text-white'
+                          : 'bg-primary-500 text-white'
+                        : nightMode
+                          ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                          : 'bg-white text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className={`text-sm ${nightMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                {pageSize === 'all'
+                  ? `1–${totalFiltered} of ${totalFiltered}`
+                  : `${Math.min((safePage - 1) * (pageSize as number) + 1, totalFiltered)}–${Math.min(safePage * (pageSize as number), totalFiltered)} of ${totalFiltered}`
+                }
+                {activeFilterCount > 0 && filteredSelectedCount > 0 && (
+                  <span className={`ml-1 ${nightMode ? 'text-primary-400' : 'text-primary-600'}`}>
+                    ({filteredSelectedCount} selected in view)
+                  </span>
+                )}
+              </span>
+
+              {pageSize !== 'all' && totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    disabled={safePage <= 1}
+                    className={`p-1.5 rounded transition-colors ${
+                      safePage <= 1
+                        ? 'opacity-30 cursor-not-allowed'
+                        : nightMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-200 text-gray-600'
+                    }`}
+                    title="First page"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={safePage <= 1}
+                    className={`p-1.5 rounded transition-colors ${
+                      safePage <= 1
+                        ? 'opacity-30 cursor-not-allowed'
+                        : nightMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-200 text-gray-600'
+                    }`}
+                    title="Previous page"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <span className={`text-sm px-2 ${nightMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {safePage} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={safePage >= totalPages}
+                    className={`p-1.5 rounded transition-colors ${
+                      safePage >= totalPages
+                        ? 'opacity-30 cursor-not-allowed'
+                        : nightMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-200 text-gray-600'
+                    }`}
+                    title="Next page"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={safePage >= totalPages}
+                    className={`p-1.5 rounded transition-colors ${
+                      safePage >= totalPages
+                        ? 'opacity-30 cursor-not-allowed'
+                        : nightMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-200 text-gray-600'
+                    }`}
+                    title="Last page"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Actual table */}
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className={nightMode ? 'bg-gray-800' : 'bg-gray-50'}>
@@ -484,78 +718,68 @@ const AssaySelection: FC<AssaySelectionProps> = ({
                   <th className={`px-4 py-3 text-center text-xs font-medium uppercase tracking-wider ${
                     nightMode ? 'text-gray-300' : 'text-gray-500'
                   }`}>
-                    <div className="flex items-center justify-center gap-2">
-                      <span>Show</span>
-                      <input
-                        type="checkbox"
-                        checked={filteredTracks.every(track => track.selected)}
-                        onChange={toggleAllFiltered}
-                        className="w-4 h-4 rounded cursor-pointer"
-                        title={searchQuery ? "Toggle all filtered" : "Toggle all"}
-                      />
-                    </div>
+                    Select
                   </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                    nightMode ? 'text-gray-300' : 'text-gray-500'
-                  }`}>
+                  {/* Species: not sortable */}
+                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${nightMode ? 'text-gray-300' : 'text-gray-500'}`}>
                     Species
                   </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                    nightMode ? 'text-gray-300' : 'text-gray-500'
-                  }`}>
-                    Subclass
-                  </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                    nightMode ? 'text-gray-300' : 'text-gray-500'
-                  }`}>
-                    Group
-                  </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                    nightMode ? 'text-gray-300' : 'text-gray-500'
-                  }`}>
-                    Assay
-                  </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                    nightMode ? 'text-gray-300' : 'text-gray-500'
-                  }`}>
-                    Source
-                  </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                    nightMode ? 'text-gray-300' : 'text-gray-500'
-                  }`}>
-                    Track Type
-                  </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                    nightMode ? 'text-gray-300' : 'text-gray-500'
-                  }`}>
-                    Description
-                  </th>
+                  {/* Sortable columns */}
+                  {([
+                    ['subclass', 'Subclass'],
+                    ['group', 'Group'],
+                    ['assay', 'Assay'],
+                    ['modality', 'Modality'],
+                    ['source', 'Source'],
+                    ['trackType', 'Track Type'],
+                    ['description', 'Description'],
+                  ] as [SortableColumn, string][]).map(([col, label]) => {
+                    const isActive = sort?.column === col;
+                    return (
+                      <th
+                        key={col}
+                        onClick={() => toggleSort(col)}
+                        className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider cursor-pointer select-none transition-colors ${
+                          isActive
+                            ? nightMode ? 'text-primary-300' : 'text-primary-600'
+                            : nightMode ? 'text-gray-300 hover:text-gray-100' : 'text-gray-500 hover:text-gray-800'
+                        }`}
+                        title={isActive ? `Sorted ${sort!.direction === 'asc' ? 'ascending' : 'descending'} — click to ${sort!.direction === 'asc' ? 'reverse' : 'clear'}` : `Sort by ${label}`}
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          {label}
+                          {isActive ? (
+                            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              {sort!.direction === 'asc'
+                                ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
+                                : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                              }
+                            </svg>
+                          ) : (
+                            <svg className={`w-3.5 h-3.5 flex-shrink-0 opacity-0 group-hover:opacity-40 ${nightMode ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                            </svg>
+                          )}
+                        </span>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody className={`divide-y ${nightMode ? 'divide-gray-800' : 'divide-gray-200'}`}>
-                {filteredIndices.map((originalIndex) => {
+                {pagedIndices.map((originalIndex) => {
                   const track = trackStates[originalIndex];
-                  // Species color coding based on reference
-                  const getSpeciesColor = (ref: string | undefined) => {
-                    switch (ref) {
-                      case 'hg38': return nightMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-800';
-                      case 'mm10': return nightMode ? 'bg-orange-900/50 text-orange-300' : 'bg-orange-100 text-orange-800';
-                      case 'rheMac10': return nightMode ? 'bg-teal-900/50 text-teal-300' : 'bg-teal-100 text-teal-800';
-                      case 'mCalJa1.2': return nightMode ? 'bg-pink-900/50 text-pink-300' : 'bg-pink-100 text-pink-800';
-                      default: return nightMode ? 'bg-gray-900/50 text-gray-300' : 'bg-gray-100 text-gray-800';
-                    }
-                  };
                   return (
-                    <tr 
+                    <tr
                       key={originalIndex}
                       onClick={() => toggleTrack(originalIndex)}
                       className={`transition-colors cursor-pointer ${
-                        nightMode 
-                          ? 'hover:bg-gray-800/50' 
-                          : 'hover:bg-gray-50'
+                        track.selected
+                          ? nightMode ? 'bg-primary-500/10' : 'bg-primary-50/60'
+                          : nightMode ? 'hover:bg-gray-800/50' : 'hover:bg-gray-50'
                       }`}
                     >
-                      <td className="px-4 py-4 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-4 py-3 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={track.selected || false}
@@ -563,47 +787,34 @@ const AssaySelection: FC<AssaySelectionProps> = ({
                           className="w-5 h-5 rounded cursor-pointer"
                         />
                       </td>
-                      <td className={`px-4 py-4 whitespace-nowrap text-sm ${
-                        nightMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSpeciesColor(track.metadata.reference)}`}>
+                      <td className={`px-4 py-3 whitespace-nowrap text-sm`}>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSpeciesColor(track.metadata.reference, nightMode)}`}>
                           {getReferenceLabel(track.metadata.reference)}
                         </span>
                       </td>
-                      <td className={`px-4 py-4 text-sm ${
-                        nightMode ? 'text-gray-300' : 'text-gray-700'
-                      }`}>
-                        <div 
-                          className="max-w-xs truncate" 
-                          title={track.metadata.subclass ? getTooltipText(track.metadata.subclass, 'subclass') : '-'}
-                        >
+                      <td className={`px-4 py-3 text-sm ${nightMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        <div className="max-w-xs truncate" title={track.metadata.subclass ? getTooltipText(track.metadata.subclass, 'subclass') : '-'}>
                           {track.metadata.subclass || '-'}
                         </div>
                       </td>
-                      <td className={`px-4 py-4 text-sm ${
-                        nightMode ? 'text-gray-300' : 'text-gray-700'
-                      }`}>
-                        <div 
-                          className="max-w-xs font-medium whitespace-normal break-words" 
-                          title={track.metadata.group ? getTooltipText(track.metadata.group, 'group') : '-'}
-                        >
+                      <td className={`px-4 py-3 text-sm ${nightMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        <div className="max-w-xs font-medium whitespace-normal break-words" title={track.metadata.group ? getTooltipText(track.metadata.group, 'group') : '-'}>
                           {track.metadata.group || '-'}
                         </div>
                       </td>
-                      <td className={`px-4 py-4 whitespace-nowrap text-sm ${
-                        nightMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
+                      <td className={`px-4 py-3 whitespace-nowrap text-sm`}>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          track.metadata.assay === 'DNA' 
+                          track.metadata.assay === 'DNA'
                             ? nightMode ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-800'
                             : nightMode ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-800'
                         }`}>
                           {track.metadata.assay || '-'}
                         </span>
                       </td>
-                      <td className={`px-4 py-4 whitespace-nowrap text-sm ${
-                        nightMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
+                      <td className={`px-4 py-3 whitespace-nowrap text-sm ${nightMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {track.metadata.modality || '-'}
+                      </td>
+                      <td className={`px-4 py-3 whitespace-nowrap text-sm`}>
                         <span className={`px-2 py-1 rounded text-xs font-medium ${
                           track.metadata.source === 'Allen Institute'
                             ? nightMode ? 'bg-cyan-900/50 text-cyan-300' : 'bg-cyan-100 text-cyan-800'
@@ -612,14 +823,10 @@ const AssaySelection: FC<AssaySelectionProps> = ({
                           {track.metadata.source || '-'}
                         </span>
                       </td>
-                      <td className={`px-4 py-4 whitespace-nowrap text-sm ${
-                        nightMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
+                      <td className={`px-4 py-3 whitespace-nowrap text-sm ${nightMode ? 'text-gray-400' : 'text-gray-600'}`}>
                         {getTypeLabel(track.config.type)}
                       </td>
-                      <td className={`px-4 py-4 text-sm ${
-                        nightMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
+                      <td className={`px-4 py-3 text-sm ${nightMode ? 'text-gray-400' : 'text-gray-600'}`}>
                         <div className="max-w-md whitespace-normal break-words" title={track.metadata.description || '-'}>
                           {track.metadata.description || '-'}
                         </div>
@@ -630,6 +837,45 @@ const AssaySelection: FC<AssaySelectionProps> = ({
               </tbody>
             </table>
           </div>
+
+          {/* Pagination footer */}
+          {pageSize !== 'all' && totalPages > 1 && (
+            <div className={`flex items-center justify-between px-4 py-3 border-t ${
+              nightMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'
+            }`}>
+              <span className={`text-sm ${nightMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Page {safePage} of {totalPages}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    safePage <= 1
+                      ? 'opacity-30 cursor-not-allowed'
+                      : nightMode
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    safePage >= totalPages
+                      ? 'opacity-30 cursor-not-allowed'
+                      : nightMode
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -645,21 +891,11 @@ const AssaySelection: FC<AssaySelectionProps> = ({
             }`}
           >
             <span className="flex items-center gap-3">
-              <svg 
-                className="w-6 h-6" 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-              >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
               <span>Next: Visualize Your Tracks on WashU Epigenome Browser</span>
-              <svg 
-                className="w-6 h-6 transition-transform group-hover:translate-x-1" 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-              >
+              <svg className="w-6 h-6 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
             </span>
