@@ -42,6 +42,14 @@ const Tooltip: FC<{ text: string | null | undefined; children: React.ReactNode }
   );
 };
 
+const SPECIES_ORDER = ['hg38', 'mm10', 'mCalJa1.2', 'rheMac10'] as const;
+const SPECIES_LABELS: Record<string, string> = {
+  hg38: 'Human',
+  mm10: 'Mouse',
+  'mCalJa1.2': 'Marmoset',
+  rheMac10: 'Macaque',
+};
+
 // Okabe-Ito colorblind-friendly palette — one color per assay
 const OKABE_ITO = [
   '#E69F00', // orange
@@ -136,13 +144,32 @@ const AssayDot: FC<{ assay: string; modalities: Set<string>; color: string }> = 
   );
 };
 
-// Row of dots — one dot per assay, aggregated from a Map<assay, Set<modality>>
-const AssayDots: FC<{ assayMap: Map<string, Set<string>>; colorMap: Map<string, string> }> = ({ assayMap, colorMap }) => {
-  if (assayMap.size === 0) return <span className="text-gray-400 text-xs">—</span>;
+type SpeciesAssayMapType = Map<string, Map<string, Set<string>>>;
+
+const AssayDotsBySpecies: FC<{
+  speciesAssayMap: SpeciesAssayMapType | undefined;
+  colorMap: Map<string, string>;
+  nightMode?: boolean;
+}> = ({ speciesAssayMap, colorMap, nightMode }) => {
+  if (!speciesAssayMap || speciesAssayMap.size === 0) return <span className="text-gray-400 text-xs">—</span>;
+
+  const speciesEntries = SPECIES_ORDER
+    .filter(s => speciesAssayMap.has(s))
+    .map(s => [s, speciesAssayMap.get(s)!] as const);
+
+  if (speciesEntries.length === 0) return <span className="text-gray-400 text-xs">—</span>;
+
   return (
-    <div className="flex flex-wrap gap-1.5 items-center">
-      {Array.from(assayMap.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([assay, modalities]) => (
-        <AssayDot key={assay} assay={assay} modalities={modalities} color={colorMap.get(assay) ?? '#888888'} />
+    <div className="flex flex-wrap gap-x-4 gap-y-1 items-center">
+      {speciesEntries.map(([species, assayMap]) => (
+        <div key={species} className="flex items-center gap-1">
+          <span className={`text-[10px] font-semibold mr-0.5 ${nightMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            {SPECIES_LABELS[species] ?? species}:
+          </span>
+          {Array.from(assayMap.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([assay, modalities]) => (
+            <AssayDot key={assay} assay={assay} modalities={modalities} color={colorMap.get(assay) ?? '#888888'} />
+          ))}
+        </div>
       ))}
     </div>
   );
@@ -159,6 +186,7 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
   const [searchQuery, setSearchQuery] = useState('');
   const [assayType, setAssayType] = useState<AssayType>('HMBA');
   const [isAtlasExpanded, setIsAtlasExpanded] = useState(false);
+  const [atlasSpecies, setAtlasSpecies] = useState<'human' | 'mouse' | 'marmoset' | 'macaque' | null>(null);
   
   // Calculate region distribution for selected groups
   const groupRegionDistribution = useMemo(() => {
@@ -482,65 +510,40 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
   // ── Assay availability ────────────────────────────────────────────────────
   const allTracks = useMemo(() => parseTracksData(), []);
 
+  type AssayModalityMap = Map<string, Set<string>>;
+  type SpeciesAssayMap = Map<string, AssayModalityMap>;
+
   const assayData = useMemo(() => {
-    // 1. Collect all unique assays and assign one color each
     const assaySet = new Set<string>();
     allTracks.forEach(t => { if (t.metadata.assay) assaySet.add(t.metadata.assay); });
     const sortedAssays = Array.from(assaySet).sort();
     const colorMap = new Map<string, string>();
     sortedAssays.forEach((assay, i) => colorMap.set(assay, OKABE_ITO[i % OKABE_ITO.length]));
 
-    // 2. Build per-group and per-subclass lookup: name → Map<assay, Set<modality>>
-    type AssayModalityMap = Map<string, Set<string>>;
-    const byGroup = new Map<string, AssayModalityMap>();
-    const bySubclass = new Map<string, AssayModalityMap>();
+    const byGroup = new Map<string, SpeciesAssayMap>();
+    const bySubclass = new Map<string, SpeciesAssayMap>();
 
-    const addToMap = (outer: Map<string, AssayModalityMap>, key: string, assay: string, modality: string) => {
+    const addToMap = (outer: Map<string, SpeciesAssayMap>, key: string, species: string, assay: string, modality: string) => {
       if (!outer.has(key)) outer.set(key, new Map());
-      const inner = outer.get(key)!;
+      const speciesMap = outer.get(key)!;
+      if (!speciesMap.has(species)) speciesMap.set(species, new Map());
+      const inner = speciesMap.get(species)!;
       if (!inner.has(assay)) inner.set(assay, new Set());
       if (modality) inner.get(assay)!.add(modality);
     };
 
     allTracks.forEach(t => {
       const assay = t.metadata.assay;
+      const species = t.metadata.reference ?? 'unknown';
       if (!assay) return;
       const modality = t.metadata.modality ?? '';
-      if (t.metadata.group) addToMap(byGroup, t.metadata.group, assay, modality);
-      if (t.metadata.subclass) addToMap(bySubclass, t.metadata.subclass, assay, modality);
+      if (t.metadata.group) addToMap(byGroup, t.metadata.group, species, assay, modality);
+      if (t.metadata.subclass) addToMap(bySubclass, t.metadata.subclass, species, assay, modality);
     });
 
     return { colorMap, byGroup, bySubclass, sortedAssays };
   }, [allTracks]);
 
-  // Aggregate to class and neighborhood level using full taxonomy tree
-  const aggregatedAssayData = useMemo(() => {
-    type AssayModalityMap = Map<string, Set<string>>;
-
-    const mergeInto = (target: AssayModalityMap, source: AssayModalityMap) => {
-      source.forEach((modalities, assay) => {
-        if (!target.has(assay)) target.set(assay, new Set());
-        modalities.forEach(m => target.get(assay)!.add(m));
-      });
-    };
-
-    const byClass = new Map<string, AssayModalityMap>();
-    const byNeighborhood = new Map<string, AssayModalityMap>();
-
-    taxonomyData.forEach(n => {
-      const nMap: AssayModalityMap = new Map();
-      n.classes.forEach(c => {
-        const cMap: AssayModalityMap = new Map();
-        c.subclasses.forEach(s => {
-          const sMap = assayData.bySubclass.get(s.subclass);
-          if (sMap) { mergeInto(cMap, sMap); mergeInto(nMap, sMap); }
-        });
-        byClass.set(c.class, cMap);
-      });
-      byNeighborhood.set(n.neighborhood, nMap);
-    });
-    return { byClass, byNeighborhood };
-  }, [assayData, taxonomyData]);
   // ──────────────────────────────────────────────────────────────────────────
 
   const displayData = filteredData;
@@ -647,12 +650,15 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
               {assayData.sortedAssays.map(assay => {
                 const color = assayData.colorMap.get(assay)!;
                 const allModalities = new Set<string>();
-                assayData.bySubclass.forEach(assayMap => {
-                  (assayMap.get(assay) ?? new Set()).forEach(m => { if (m) allModalities.add(m); });
-                });
-                assayData.byGroup.forEach(assayMap => {
-                  (assayMap.get(assay) ?? new Set()).forEach(m => { if (m) allModalities.add(m); });
-                });
+                const collectModalities = (outer: Map<string, SpeciesAssayMap>) => {
+                  outer.forEach(speciesMap => {
+                    speciesMap.forEach(assayMap => {
+                      (assayMap.get(assay) ?? new Set()).forEach(m => { if (m) allModalities.add(m); });
+                    });
+                  });
+                };
+                collectModalities(assayData.bySubclass);
+                collectModalities(assayData.byGroup);
                 const sortedModalities = Array.from(allModalities).sort();
                 return (
                   <div key={assay} className="flex items-start gap-2">
@@ -732,7 +738,7 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
                 }`}>
                   Select
                 </th>
-                <th className={`px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider w-16 ${
+                <th className={`px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider ${
                   nightMode ? 'text-gray-300' : 'text-gray-700'
                 }`}>
                   Available Assays
@@ -762,12 +768,7 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
                       </Tooltip>
                     </td>
                     <td className="px-4 py-3"></td>
-                    <td className="px-2 py-3">
-                      <AssayDots
-                        assayMap={aggregatedAssayData.byNeighborhood.get(neighborhood.neighborhood) ?? new Map()}
-                        colorMap={assayData.colorMap}
-                      />
-                    </td>
+                    <td className="px-2 py-3"></td>
                   </tr>
 
                   {/* Classes under this Neighborhood */}
@@ -792,12 +793,7 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
                           </Tooltip>
                         </td>
                         <td className="px-4 py-3"></td>
-                        <td className="px-2 py-3">
-                          <AssayDots
-                            assayMap={aggregatedAssayData.byClass.get(classObj.class) ?? new Map()}
-                            colorMap={assayData.colorMap}
-                          />
-                        </td>
+                        <td className="px-2 py-3"></td>
                       </tr>
 
                       {/* Subclasses under this Class */}
@@ -861,9 +857,10 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
                               </div>
                             </td>
                             <td className="px-2 py-3">
-                              <AssayDots
-                                assayMap={assayData.bySubclass.get(subclass.subclass) ?? new Map()}
+                              <AssayDotsBySpecies
+                                speciesAssayMap={assayData.bySubclass.get(subclass.subclass)}
                                 colorMap={assayData.colorMap}
+                                nightMode={nightMode}
                               />
                             </td>
                           </tr>
@@ -901,9 +898,10 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
                                 </button>
                               </td>
                               <td className="px-2 py-3">
-                                <AssayDots
-                                  assayMap={assayData.byGroup.get(group.group) ?? new Map()}
+                                <AssayDotsBySpecies
+                                  speciesAssayMap={assayData.byGroup.get(group.group)}
                                   colorMap={assayData.colorMap}
+                                  nightMode={nightMode}
                                 />
                               </td>
                             </tr>
@@ -1054,7 +1052,7 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
         </div>
       </div>
 
-      {/* Allen Brain Atlas Section */}
+      {/* 3D Brain Structure Explorer Section */}
       <div className={`rounded-2xl shadow-xl overflow-hidden ${
         nightMode ? 'bg-gray-900/50 border border-gray-700' : 'bg-white border border-gray-200'
       }`}>
@@ -1063,18 +1061,10 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
         }`}>
           <div>
             <h3 className={`text-lg font-semibold ${nightMode ? 'text-gray-100' : 'text-gray-900'}`}>
-              Allen Brain Atlas
+              3D Brain Structure Explorer
             </h3>
             <p className={`text-sm mt-1 ${nightMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Interactive 3D reference atlas from the{' '}
-              <a 
-                href="https://atlas.brain-map.org/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-blue-500 hover:text-blue-600 underline"
-              >
-                Allen Institute for Brain Science
-              </a>
+              Interactive 3D reference atlas — select a species to explore brain structures
             </p>
           </div>
           <button
@@ -1097,15 +1087,77 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
           </button>
         </div>
         {isAtlasExpanded && (
-          <div className="relative w-full" style={{ height: '800px' }}>
-            <iframe
-              src="https://atlas.brain-map.org/atlas?atlas=265297126#atlas=265297126&plate=112282815&structure=10338&x=53996.08258928572&y=57561.14397321429&zoom=-7&resolution=176.55&z=3"
-              className="w-full h-full border-0"
-              title="Allen Brain Atlas"
-              allow="fullscreen"
-              loading="lazy"
-              tabIndex={-1}
-            />
+          <div className="p-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              {([
+                { key: 'human' as const, label: 'Human', icon: '🧠' },
+                { key: 'mouse' as const, label: 'Mouse', icon: '🐭' },
+                { key: 'marmoset' as const, label: 'Marmoset', icon: '🐒' },
+                { key: 'macaque' as const, label: 'Macaque', icon: '🐵' },
+              ]).map(({ key, label, icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setAtlasSpecies(atlasSpecies === key ? null : key)}
+                  className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium text-sm transition-all ${
+                    atlasSpecies === key
+                      ? nightMode
+                        ? 'bg-primary-600 text-white ring-2 ring-primary-400 shadow-lg'
+                        : 'bg-primary-500 text-white ring-2 ring-primary-300 shadow-lg'
+                      : nightMode
+                        ? 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-600'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300'
+                  }`}
+                >
+                  <span className="text-lg">{icon}</span>
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+            {atlasSpecies && (
+              <div className="relative w-full rounded-xl overflow-hidden" style={{ height: '800px' }}>
+                <iframe
+                  key={atlasSpecies}
+                  src={{
+                    human: 'https://atlas.brain-map.org/atlas?atlas=265297126#atlas=265297126&plate=112360888&structure=10390&x=40320&y=46976&zoom=-7&resolution=124.49&z=3',
+                    mouse: 'https://atlas.brain-map.org/atlas?atlas=602630314#atlas=602630314&plate=576989940&structure=549&x=5280.017636427238&y=3744.003614738806&zoom=-3&resolution=11.93&z=3',
+                    marmoset: 'https://scalablebrainatlas.incf.org/marmoset/PWPRT12',
+                    macaque: 'https://scalablebrainatlas.incf.org/main/coronal3d.php?template=CBCetal15',
+                  }[atlasSpecies]}
+                  className="w-full h-full border-0"
+                  title={`3D Brain Structure Explorer — ${atlasSpecies.charAt(0).toUpperCase() + atlasSpecies.slice(1)}`}
+                  allow="fullscreen"
+                  loading="lazy"
+                  tabIndex={-1}
+                />
+              </div>
+            )}
+            {!atlasSpecies && (
+              <div className={`flex items-center justify-center rounded-xl border-2 border-dashed py-16 ${
+                nightMode ? 'border-gray-600 text-gray-500' : 'border-gray-300 text-gray-400'
+              }`}>
+                <p className="text-sm">Select a species above to load the brain atlas viewer</p>
+              </div>
+            )}
+            <div className={`mt-4 pt-4 border-t text-xs ${
+              nightMode ? 'border-gray-700 text-gray-500' : 'border-gray-200 text-gray-400'
+            }`}>
+              <p>
+                Human and Mouse atlases provided by the{' '}
+                <a href="https://atlas.brain-map.org/" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500">
+                  Allen Institute for Brain Science
+                </a>
+                . Marmoset and Macaque atlases provided by the{' '}
+                <a href="https://scalablebrainatlas.incf.org/" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500">
+                  Scalable Brain Atlas
+                </a>
+                {' '}(INCF). Macaque atlas based on: Calabrese E, Badea A, Coe CL, Lubach GR, Shi Y, Styner MA, Johnson A (2015)
+                {' '}&ldquo;A diffusion tensor MRI atlas of the postmortem rhesus macaque brain&rdquo;{' '}
+                <em>Neuroimage</em> 117:408&ndash;416.{' '}
+                <a href="https://doi.org/10.1016/j.neuroimage.2015.05.072" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500">
+                  doi:10.1016/j.neuroimage.2015.05.072
+                </a>
+              </p>
+            </div>
           </div>
         )}
       </div>

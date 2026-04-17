@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, type FC } from 'react';
+import React, { useMemo, useState, useCallback, useRef, type FC } from 'react';
 import type { Track } from '../store/trackStore';
 import { getTooltipText } from '../utils/abbreviationLookup';
 
@@ -99,6 +99,40 @@ const FilterDropdown: FC<{
   renderLabel?: (value: string) => string;
 }> = ({ label, options, selected, onChange, nightMode, renderLabel }) => {
   const [open, setOpen] = useState(false);
+  const [pinned, setPinned] = useState(false); // true = opened by click (sticky)
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const show = () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    setOpen(true);
+  };
+
+  const handleMouseEnter = () => {
+    if (pinned) return;
+    hoverTimer.current = setTimeout(show, 120);
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    if (pinned) return;
+    setOpen(false);
+  };
+
+  const handleClick = () => {
+    if (pinned) {
+      setPinned(false);
+      setOpen(false);
+    } else {
+      setPinned(true);
+      setOpen(true);
+    }
+  };
+
+  const dismissPinned = () => {
+    setPinned(false);
+    setOpen(false);
+  };
 
   const toggle = (value: string) => {
     if (selected.includes(value)) {
@@ -113,9 +147,14 @@ const FilterDropdown: FC<{
   const activeCount = selected.length;
 
   return (
-    <div className="relative">
+    <div
+      className="relative"
+      ref={containerRef}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <button
-        onClick={() => setOpen(!open)}
+        onClick={handleClick}
         className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all border ${
           activeCount > 0
             ? nightMode
@@ -128,9 +167,7 @@ const FilterDropdown: FC<{
       >
         <span>{label}</span>
         {activeCount > 0 && (
-          <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
-            nightMode ? 'bg-primary-500 text-white' : 'bg-primary-500 text-white'
-          }`}>
+          <span className="px-1.5 py-0.5 rounded-full text-xs font-bold bg-primary-500 text-white">
             {activeCount}
           </span>
         )}
@@ -141,7 +178,7 @@ const FilterDropdown: FC<{
 
       {open && (
         <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          {pinned && <div className="fixed inset-0 z-30" onClick={dismissPinned} />}
           <div className={`absolute z-40 mt-1 w-64 max-h-72 overflow-y-auto rounded-xl shadow-xl border ${
             nightMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
           }`}>
