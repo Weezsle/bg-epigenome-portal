@@ -232,6 +232,7 @@ const RegionDistributionChart: FC<RegionDistributionChartProps> = ({
           </div>
         </div>
       </div>
+
     </div>
   );
 };

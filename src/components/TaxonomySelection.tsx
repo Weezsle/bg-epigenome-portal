@@ -9,6 +9,7 @@ import {
 } from '../store/taxonomyStore';
 import RegionDistributionChart from './RegionDistributionChart';
 import { getFullName } from '../utils/abbreviationLookup';
+import { resolveRegions } from '../utils/regionAbbreviationLookup';
 
 const Tooltip: FC<{ text: string | null | undefined; children: React.ReactNode }> = ({ text, children }) => {
   const [visible, setVisible] = useState(false);
@@ -175,6 +176,57 @@ const AssayDotsBySpecies: FC<{
   );
 };
 
+const SharedRegionLegend: FC<{
+  entries: { abbv: string; fullName: string }[];
+  nightMode: boolean;
+}> = ({ entries, nightMode }) => {
+  const [open, setOpen] = useState(true);
+
+  return (
+    <div className={`rounded-2xl overflow-hidden border ${nightMode ? 'bg-gray-900/50 border-gray-700' : 'bg-white border-gray-200'}`}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={`w-full flex items-center justify-between px-6 py-3 text-sm font-medium transition-colors ${
+          nightMode ? 'text-gray-300 hover:bg-gray-800/60' : 'text-gray-600 hover:bg-gray-50'
+        }`}
+      >
+        <span className="flex items-center gap-2">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+          Region Abbreviation Legend
+          <span className={`text-xs px-1.5 py-0.5 rounded-full ${nightMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>
+            {entries.length}
+          </span>
+        </span>
+        <svg
+          className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className={`px-6 pb-5 border-t ${nightMode ? 'border-gray-700 bg-gray-900/30' : 'border-gray-200 bg-gray-50/60'}`}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-1 pt-4 max-h-72 overflow-y-auto pr-1">
+            {entries.map(({ abbv, fullName }) => (
+              <div key={abbv} className="flex items-baseline gap-2 py-0.5">
+                <span className={`font-mono text-xs font-semibold whitespace-nowrap ${nightMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                  {abbv}
+                </span>
+                <span className={`text-xs leading-snug ${nightMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {fullName}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 type TaxonomySelectionProps = {
   nightMode: boolean;
   taxonomyData: TaxonomyNeighborhood[];
@@ -198,6 +250,15 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
     return calculateSubclassRegionDistribution(taxonomyData, assayType);
   }, [taxonomyData, assayType]);
   
+  // Combined region legend for both charts
+  const combinedRegionLegend = useMemo(() => {
+    const allAbbvs = Array.from(new Set([
+      ...Object.keys(subclassRegionDistribution),
+      ...Object.keys(groupRegionDistribution),
+    ]));
+    return resolveRegions(allAbbvs);
+  }, [subclassRegionDistribution, groupRegionDistribution]);
+
   // Filter taxonomy data based on search query - preserve original indices
   const filteredData = useMemo(() => {
     // Always add originalIndex to all levels
@@ -1049,6 +1110,11 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
               description="Cell count distribution for selected groups"
             />
           </div>
+
+          {/* Shared Region Abbreviation Legend */}
+          {combinedRegionLegend.length > 0 && (
+            <SharedRegionLegend entries={combinedRegionLegend} nightMode={nightMode} />
+          )}
         </div>
       </div>
 
