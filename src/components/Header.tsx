@@ -10,8 +10,13 @@ interface HeaderProps {
   onTabChange: (tabId: string) => void;
 }
 
+const isDevEnv = typeof window !== 'undefined' && window.location.pathname.startsWith('/dev');
+const isLocalDev = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+
 function Header({ nightMode, onToggleNightMode, onReset, tabs, currentTab, onTabChange }: HeaderProps) {
   const [showConfirm, setShowConfirm] = useState(false);
+  const [devBannerDismissed, setDevBannerDismissed] = useState(false);
+  const [localBannerDismissed, setLocalBannerDismissed] = useState(false);
   const confirmRef = useRef<HTMLDivElement>(null);
 
   // Close the popover when clicking outside
@@ -33,6 +38,53 @@ function Header({ nightMode, onToggleNightMode, onReset, tabs, currentTab, onTab
 
   return (
     <header className={`${nightMode ? 'bg-science-900/95 border-science-800' : 'bg-white/95 border-science-200'} border-b backdrop-blur-md transition-colors duration-300 sticky top-0 z-50`}>
+      {/* Dev environment banner */}
+      {isDevEnv && !devBannerDismissed && (
+        <div className="flex items-center justify-center gap-2 px-4 py-1.5 bg-amber-400 text-amber-900 text-xs font-semibold">
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <span>
+            Development Preview — This is an unstable development build. Visit{' '}
+            <a
+              href="https://basalganglia.epigenomes.net/"
+              className="underline underline-offset-2 hover:text-amber-700 transition-colors"
+            >
+              basalganglia.epigenomes.net
+            </a>{' '}
+            for the stable release.
+          </span>
+          <button
+            onClick={() => setDevBannerDismissed(true)}
+            aria-label="Dismiss development banner"
+            className="ml-2 p-0.5 rounded hover:bg-amber-500/40 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+      {/* Local dev environment banner */}
+      {isLocalDev && !localBannerDismissed && (
+        <div className="flex items-center justify-center gap-2 px-4 py-1.5 bg-violet-500 text-white text-xs font-semibold">
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
+              d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+          <span>Local Dev — Running on localhost</span>
+          <button
+            onClick={() => setLocalBannerDismissed(true)}
+            aria-label="Dismiss local dev banner"
+            className="ml-2 p-0.5 rounded hover:bg-violet-400/40 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
       {/* Top bar with logo and controls */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex justify-between items-center">

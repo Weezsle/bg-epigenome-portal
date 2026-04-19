@@ -1,10 +1,27 @@
-import type { FC } from 'react';
+import { type FC, useState } from 'react';
 
 type AboutSectionProps = {
   nightMode: boolean;
 };
 
-const AboutSection: FC<AboutSectionProps> = ({ nightMode }) => (
+const CITATION_TEXT =
+  'Zhang W, Ding W, Li K, Chang L, Klein A, Báez-Becerra CT, Rink JA, Bartlett A, Chen H, Schenker N, ' +
+  'Johansen N, Mollenkopf T, Fu Y, Yang X, Liu S, Seng C, Miao B, Liu T, Zhu Q, Hodge RD, Bakken TE, ' +
+  'Lein ES, Hawrylycz M, Xu X, Behrens MM, Ren B, Ecker JR, Wang T, Li D. ' +
+  'An Integrated Single-Cell and Epigenomic Resource for Comparative Analysis of the Basal Ganglia. ' +
+  'bioRxiv. 2026. doi:10.64898/2026.01.29.702575';
+
+const AboutSection: FC<AboutSectionProps> = ({ nightMode }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(CITATION_TEXT).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
   <div className={`space-y-8 ${nightMode ? 'text-gray-200' : 'text-gray-800'}`}>
     {/* Main Hero Card */}
     <div className="rounded-2xl p-8 gradient-science text-white shadow-2xl relative overflow-hidden">
@@ -175,6 +192,7 @@ const AboutSection: FC<AboutSectionProps> = ({ nightMode }) => (
         {[
           { label: 'BICAN Data Catalog', href: 'https://www.portal.brain-bican.org/' },
           { label: 'Allen Brain Atlas', href: 'https://atlas.brain-map.org/' },
+          { label: 'Scalable Brain Atlas', href: 'https://scalablebrainatlas.incf.org/' },
           { label: 'NIH BRAIN Initiative', href: 'https://braininitiative.nih.gov/' }
         ].map((link, idx) => (
           <a
@@ -271,7 +289,57 @@ const AboutSection: FC<AboutSectionProps> = ({ nightMode }) => (
         </a>.
       </p>
     </div>
+
+    {/* Cite This Work */}
+    <div className={`rounded-xl p-4 ${nightMode ? 'card-science-dark' : 'card-science'}`}>
+      <h3 className={`text-sm font-semibold mb-2 ${nightMode ? 'text-white' : 'text-science-900'}`}>
+        Cite This Work
+      </h3>
+      <p className={`font-mono text-xs leading-relaxed mb-3 p-3 rounded-lg border ${
+        nightMode ? 'bg-science-900 border-science-700 text-science-300' : 'bg-science-50 border-science-200 text-science-700'
+      }`}>
+        {CITATION_TEXT}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={handleCopy}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            copied
+              ? nightMode
+                ? 'bg-success-500/20 text-success-300 border border-success-500/30'
+                : 'bg-success-100 text-success-700 border border-success-200'
+              : nightMode
+              ? 'bg-accent-500/20 text-accent-300 hover:bg-accent-500/30 border border-accent-500/30'
+              : 'bg-accent-100 text-accent-700 hover:bg-accent-200 border border-accent-200'
+          }`}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {copied
+              ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            }
+          </svg>
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+        <a
+          href="https://www.biorxiv.org/content/10.64898/2026.01.29.702575v2.abstract"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            nightMode
+              ? 'bg-science-800 text-science-300 hover:bg-science-700 hover:text-white border border-science-700'
+              : 'bg-science-100 text-science-700 hover:bg-science-200 border border-science-200'
+          }`}
+        >
+          View on bioRxiv
+          <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+        </a>
+      </div>
+    </div>
   </div>
-);
+  );
+};
 
 export default AboutSection;
