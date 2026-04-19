@@ -104,8 +104,8 @@ ST18	ST18 C2H2C-type zinc finger transcription factor
 STH	subthalamic nucleus
 STK32A	serine/threonine kinase 32A
 STR	striatum
-STRd	dorsal striatum (caudoputamen complex-CP, STRd)
-STRv	ventral striatum (STRv)
+STRd	dorsal striatum (caudoputamen complex-CP)
+STRv	ventral striatum
 Subpallium	subpallium
 TAC3	tachykinin precursor 3
 TCF7L2	transcription factor 7 like 2
@@ -128,7 +128,11 @@ D2	D2
 D1D2	D1/D2
 Striosome	striosome
 Matrix	matrix
-StrioMat	striosome matrix"""
+StrioMat	striosome matrix
+GRIN2A	GRIN2A
+NRP2	NRP2
+RORA	RORA
+NUDAP	NUDAP"""
 
 
 token_abrevations_to_fullnames = {}

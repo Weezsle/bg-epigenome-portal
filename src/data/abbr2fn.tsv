@@ -99,21 +99,21 @@ STR SST GABA	subclass	striatum somatostatin GABAergic neuron
 STR SST-ADARB2 GABA	group	striatum somatostatin-adenosine deaminase RNA specific B2 (inactive) GABAergic neuron
 STR SST-CHODL GABA	group	striatum somatostatin-chondrolectin GABAergic neuron
 STR SST-CHODL GABA	subclass	striatum somatostatin-chondrolectin GABAergic neuron
-STR SST-CHODL GRIN2A GABA	group	striatum somatostatin-chondrolectin GABAergic neuron
-STR SST-CHODL NRP2 GABA	group	striatum somatostatin-chondrolectin GABAergic neuron
-STR SST-CHODL RORA GABA	group	striatum somatostatin-chondrolectin GABAergic neuron
+STR SST-CHODL GRIN2A GABA	group	striatum somatostatin-chondrolectin GRIN2A GABAergic neuron
+STR SST-CHODL NRP2 GABA	group	striatum somatostatin-chondrolectin NRP2 GABAergic neuron
+STR SST-CHODL RORA GABA	group	striatum somatostatin-chondrolectin RORA GABAergic neuron
 STR SST-RSPO2 GABA	group	striatum somatostatin-R-spondin 2 GABAergic neuron
 STR TAC3-PLPP4 GABA	group	striatum tachykinin precursor 3-phospholipid phosphatase 4 GABAergic neuron
 STR-BF TAC3-PLPP4-LHX8 GABA	group	striatum-basal forebrain tachykinin precursor 3-phospholipid phosphatase 4-LIM homeobox 8 GABAergic neuron
-STRd Cholinergic GABA	group	dorsal striatum (caudoputamen complex-CP, STRd) cholinergic neuron GABAergic neuron
-STRd D1 Matrix MSN	group	dorsal striatum (caudoputamen complex-CP, STRd) D1 matrix medium spiny neuron
-STRd D1 Striosome MSN	group	dorsal striatum (caudoputamen complex-CP, STRd) D1 striosome medium spiny neuron
-STRd D2 Matrix MSN	group	dorsal striatum (caudoputamen complex-CP, STRd) D2 matrix medium spiny neuron
-STRd D2 StrioMat Hybrid MSN	group	dorsal striatum (caudoputamen complex-CP, STRd) D2 striosome matrix hybrid medium spiny neuron
-STRd D2 Striosome MSN	group	dorsal striatum (caudoputamen complex-CP, STRd) D2 striosome medium spiny neuron
-STRv D1 MSN	group	ventral striatum (STRv) D1 medium spiny neuron
-STRv D1 NUDAP MSN	group	ventral striatum (STRv) D1 medium spiny neuron
-STRv D2 MSN	group	ventral striatum (STRv) D2 medium spiny neuron
+STRd Cholinergic GABA	group	dorsal striatum (caudoputamen complex-CP) cholinergic neuron GABAergic neuron
+STRd D1 Matrix MSN	group	dorsal striatum (caudoputamen complex-CP) D1 matrix medium spiny neuron
+STRd D1 Striosome MSN	group	dorsal striatum (caudoputamen complex-CP) D1 striosome medium spiny neuron
+STRd D2 Matrix MSN	group	dorsal striatum (caudoputamen complex-CP) D2 matrix medium spiny neuron
+STRd D2 StrioMat Hybrid MSN	group	dorsal striatum (caudoputamen complex-CP) D2 striosome matrix hybrid medium spiny neuron
+STRd D2 Striosome MSN	group	dorsal striatum (caudoputamen complex-CP) D2 striosome medium spiny neuron
+STRv D1 MSN	group	ventral striatum D1 medium spiny neuron
+STRv D1 NUDAP MSN	group	ventral striatum D1 NUDAP medium spiny neuron
+STRv D2 MSN	group	ventral striatum D2 medium spiny neuron
 Subpallium GABA	neighborhood	subpallium GABAergic neuron
 Subpallium GABA-Glut	neighborhood	subpallium GABAergic neuron-glutamatergic neuron
 VIP GABA	group	vasoactive intestinal peptide GABAergic neuron
