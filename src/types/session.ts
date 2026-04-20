@@ -8,6 +8,7 @@ export interface Session {
   createdAt: string;
   taxonomyData: TaxonomyNeighborhood[];
   trackStates: Track[];
+  currentViewRegion?: string;
   version: string;
 }
 

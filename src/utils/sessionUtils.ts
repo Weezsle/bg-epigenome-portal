@@ -42,7 +42,8 @@ export function saveSession(
   name: string,
   description: string,
   taxonomyData: TaxonomyNeighborhood[],
-  trackStates: Track[]
+  trackStates: Track[],
+  currentViewRegion?: string
 ): Session {
   const session: Session = {
     id: generateSessionId(),
@@ -51,6 +52,7 @@ export function saveSession(
     createdAt: new Date().toISOString(),
     taxonomyData: JSON.parse(JSON.stringify(taxonomyData)), // Deep clone
     trackStates: JSON.parse(JSON.stringify(trackStates)), // Deep clone
+    currentViewRegion,
     version: SESSION_VERSION,
   };
 

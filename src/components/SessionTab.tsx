@@ -43,7 +43,8 @@ type SessionTabProps = {
   nightMode: boolean;
   taxonomyData: TaxonomyNeighborhood[];
   trackStates: Track[];
-  onLoadSession: (taxonomyData: TaxonomyNeighborhood[], trackStates: Track[]) => void;
+  currentViewRegion: string;
+  onLoadSession: (taxonomyData: TaxonomyNeighborhood[], trackStates: Track[], viewRegion?: string) => void;
   onShowLanding: () => void;
   onStartGuide: () => void;
 };
@@ -134,6 +135,7 @@ const SessionTab: FC<SessionTabProps> = ({
   nightMode,
   taxonomyData = [],
   trackStates = [],
+  currentViewRegion,
   onLoadSession,
   onShowLanding,
   onStartGuide,
@@ -189,7 +191,7 @@ const SessionTab: FC<SessionTabProps> = ({
     }
 
     try {
-      saveSession(sessionName, sessionDescription, taxonomyData || [], trackStates || []);
+      saveSession(sessionName, sessionDescription, taxonomyData || [], trackStates || [], currentViewRegion);
       loadSessions();
       setShowSaveDialog(false);
       setSessionName('');
@@ -206,7 +208,7 @@ const SessionTab: FC<SessionTabProps> = ({
       `Load session "${session.name}"? This will replace your current selections.`,
       'confirm',
       () => {
-        onLoadSession(session.taxonomyData, session.trackStates);
+        onLoadSession(session.taxonomyData, session.trackStates, session.currentViewRegion);
         showDialog('Success', 'Session loaded successfully!', 'success');
       }
     );

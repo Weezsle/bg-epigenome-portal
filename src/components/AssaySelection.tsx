@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback, useRef, type FC } from 'react';
 import type { Track } from '../store/trackStore';
-import { getTooltipText } from '../utils/abbreviationLookup';
+import TaxonomyTooltip from './TaxonomyTooltip';
 
 type AssaySelectionProps = {
   nightMode: boolean;
@@ -830,13 +830,17 @@ const AssaySelection: FC<AssaySelectionProps> = ({
                         </span>
                       </td>
                       <td className={`px-4 py-3 text-sm ${nightMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                        <div className="max-w-xs truncate" title={track.metadata.subclass ? getTooltipText(track.metadata.subclass, 'subclass') : '-'}>
-                          {track.metadata.subclass || '-'}
+                        <div className="max-w-xs truncate">
+                          {track.metadata.subclass
+                            ? <TaxonomyTooltip name={track.metadata.subclass} type="subclass">{track.metadata.subclass}</TaxonomyTooltip>
+                            : '-'}
                         </div>
                       </td>
                       <td className={`px-4 py-3 text-sm ${nightMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                        <div className="max-w-xs font-medium whitespace-normal break-words" title={track.metadata.group ? getTooltipText(track.metadata.group, 'group') : '-'}>
-                          {track.metadata.group || '-'}
+                        <div className="max-w-xs font-medium whitespace-normal break-words">
+                          {track.metadata.group
+                            ? <TaxonomyTooltip name={track.metadata.group} type="group">{track.metadata.group}</TaxonomyTooltip>
+                            : '-'}
                         </div>
                       </td>
                       <td className={`px-4 py-3 whitespace-nowrap text-sm`}>

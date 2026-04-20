@@ -8,40 +8,8 @@ import {
   calculateSubclassRegionDistribution 
 } from '../store/taxonomyStore';
 import RegionDistributionChart from './RegionDistributionChart';
-import { getFullName } from '../utils/abbreviationLookup';
 import { resolveRegions } from '../utils/regionAbbreviationLookup';
-
-const Tooltip: FC<{ text: string | null | undefined; children: React.ReactNode }> = ({ text, children }) => {
-  const [visible, setVisible] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  if (!text) return <>{children}</>;
-
-  const handleMouseEnter = () => {
-    timerRef.current = setTimeout(() => setVisible(true), 100);
-  };
-
-  const handleMouseLeave = () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setVisible(false);
-  };
-
-  return (
-    <span
-      className="relative inline-block"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
-      {children}
-      {visible && (
-        <span className="absolute z-50 bottom-full left-0 mb-2 px-3 py-2 text-sm font-semibold text-white bg-gray-900 rounded-lg shadow-xl whitespace-pre-wrap max-w-[260px] pointer-events-none">
-          {text}
-          <span className="absolute top-full left-4 border-4 border-transparent border-t-gray-900" />
-        </span>
-      )}
-    </span>
-  );
-};
+import TaxonomyTooltip from './TaxonomyTooltip';
 
 const SPECIES_ORDER = ['hg38', 'mm10', 'mCalJa1.2', 'rheMac10'] as const;
 const SPECIES_LABELS: Record<string, string> = {
@@ -824,9 +792,9 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
                       <span className="inline-block w-4 text-center mr-2">
                         {neighborhood.isExpanded ? '▼' : '▶'}
                       </span>
-                      <Tooltip text={getFullName(neighborhood.neighborhood, 'neighborhood')}>
+                      <TaxonomyTooltip name={neighborhood.neighborhood} type="neighborhood">
                         {neighborhood.neighborhood}
-                      </Tooltip>
+                      </TaxonomyTooltip>
                     </td>
                     <td className="px-4 py-3"></td>
                     <td className="px-2 py-3"></td>
@@ -849,9 +817,9 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
                           <span className="inline-block w-4 text-center mr-2">
                             {classObj.isExpanded ? '▼' : '▶'}
                           </span>
-                          <Tooltip text={getFullName(classObj.class, 'class')}>
+                          <TaxonomyTooltip name={classObj.class} type="class">
                             {classObj.class}
-                          </Tooltip>
+                          </TaxonomyTooltip>
                         </td>
                         <td className="px-4 py-3"></td>
                         <td className="px-2 py-3"></td>
@@ -874,7 +842,7 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
                               <span className="inline-block w-4 text-center mr-2">
                                 {subclass.isExpanded ? '▼' : '▶'}
                               </span>
-                              <Tooltip text={getFullName(subclass.subclass, 'subclass')}>{subclass.subclass}</Tooltip>
+                              <TaxonomyTooltip name={subclass.subclass} type="subclass">{subclass.subclass}</TaxonomyTooltip>
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2">
@@ -939,7 +907,7 @@ const TaxonomySelection: FC<TaxonomySelectionProps> = ({ nightMode, taxonomyData
                               }`}
                             >
                               <td className={`px-4 py-3 pl-28 text-sm ${nightMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                                <Tooltip text={getFullName(group.group, 'group')}>{group.group}</Tooltip>
+                                <TaxonomyTooltip name={group.group} type="group">{group.group}</TaxonomyTooltip>
                               </td>
                               <td className="px-4 py-3">
                                 <button

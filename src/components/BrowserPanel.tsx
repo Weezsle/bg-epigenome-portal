@@ -7,13 +7,18 @@ import { buildBrowserTracks } from '../utils/browserTracks';
 type BrowserPanelProps = {
   nightMode: boolean;
   selectedTracks: Track[];
+  viewRegion: string;
+  onViewRegionChange: (region: string) => void;
 };
 
-const BrowserPanel: FC<BrowserPanelProps> = ({ nightMode, selectedTracks }) => {
+const BrowserPanel: FC<BrowserPanelProps> = ({ nightMode, selectedTracks, viewRegion, onViewRegionChange }) => {
   // Generate a random storeId for each component instance
   const storeId = useMemo(() => {
     return `genome-browser-${crypto.randomUUID()}`;
   }, []);
+
+  console.log('I am passing this view region to the browser:', viewRegion);
+  console.log('Store ID:', storeId);
   
   // Standard reference is always hg38 - other species use genome align tracks
   const activeReference = 'hg38';
@@ -157,7 +162,23 @@ const BrowserPanel: FC<BrowserPanelProps> = ({ nightMode, selectedTracks }) => {
                 storeConfig={{storeId}}
                 genomeName={activeReference}
                 tracks={browserTracks}
-                viewRegion="chr7:27053397-27373765"
+                viewRegion={viewRegion}
+                onSessionUpdate={(currentViewRegion: any) => {
+
+                  if (currentViewRegion === null) {
+                    return;
+                  }
+
+                  if (!Object.keys(currentViewRegion).includes('userViewRegion')) {
+                    return;
+                  }
+
+                  if (currentViewRegion.userViewRegion !== null) {
+                    // console.log('currentViewRegion:', currentViewRegion.userViewRegion);
+                    onViewRegionChange(currentViewRegion.userViewRegion);
+                  }
+
+                }}
                 showGenomeNavigator={true}
                 showNavBar={showNavBar}
                 showToolBar={true}

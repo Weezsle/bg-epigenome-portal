@@ -48,6 +48,10 @@ function App() {
   
   // Track states with selection managed at App level to persist across tab changes
   const [trackStates, setTrackStates] = useState<Track[]>([]);
+
+  // Browser view region state
+  const DEFAULT_VIEW_REGION = 'chr7:27053397-27373765';
+  const [currentViewRegion, setCurrentViewRegion] = useState<string>(DEFAULT_VIEW_REGION);
   
   // Access serialized selections for debugging or passing to other components
   // Keep groups and subclasses separated to distinguish between them
@@ -120,9 +124,12 @@ function App() {
   }, [trackStates]);
 
   // Handle loading a session
-  const handleLoadSession = useCallback((loadedTaxonomyData: TaxonomyNeighborhood[], loadedTrackStates: Track[]) => {
+  const handleLoadSession = useCallback((loadedTaxonomyData: TaxonomyNeighborhood[], loadedTrackStates: Track[], loadedViewRegion?: string) => {
     setTaxonomyData(loadedTaxonomyData);
     setTrackStates(loadedTrackStates);
+    if (loadedViewRegion) {
+      setCurrentViewRegion(loadedViewRegion);
+    }
     // Reset the previous taxonomy ref to prevent auto-selection
     prevTaxonomySelectionsRef.current = serializeTaxonomySelections(serializeTaxonomyStore(loadedTaxonomyData));
   }, [serializeTaxonomySelections]);
@@ -251,6 +258,8 @@ function App() {
                 <BrowserPanel 
                   nightMode={nightMode}
                   selectedTracks={selectedTracks}
+                  viewRegion={currentViewRegion}
+                  onViewRegionChange={setCurrentViewRegion}
                 />
               )}
               {currentTab === 'scAnalysis' && (
@@ -291,6 +300,7 @@ function App() {
                   nightMode={nightMode}
                   taxonomyData={taxonomyData}
                   trackStates={trackStates}
+                  currentViewRegion={currentViewRegion}
                   onLoadSession={handleLoadSession}
                   onShowLanding={() => setShowLanding(true)}
                   onStartGuide={() => setShowGuide(true)}

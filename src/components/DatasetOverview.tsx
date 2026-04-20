@@ -2,7 +2,8 @@ import type { FC } from 'react';
 import { useMemo, useState } from 'react';
 import { parseTaxonomyData, type TaxonomyNeighborhood } from '../store/taxonomyStore';
 import { parseTracksData, type Track, getUniqueAssays } from '../store/trackStore';
-import { getTooltipText } from '../utils/abbreviationLookup';
+import TaxonomyTooltip from './TaxonomyTooltip';
+import DataExplorer from './DataExplorer';
 
 type DatasetOverviewProps = {
   nightMode: boolean;
@@ -510,6 +511,9 @@ const DatasetOverview: FC<DatasetOverviewProps> = ({ nightMode }) => {
         </div>
       </div>
 
+      {/* Interactive Data Explorer */}
+      <DataExplorer nightMode={nightMode} />
+
       {/* Legend */}
       <Legend nightMode={nightMode} />
 
@@ -603,11 +607,13 @@ const DatasetOverview: FC<DatasetOverviewProps> = ({ nightMode }) => {
                           nightMode ? 'border-science-700/50' : 'border-science-200'
                         }`}
                       >
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${
-                          nightMode ? 'bg-primary-500/20 text-primary-400' : 'bg-primary-100 text-primary-700'
-                        }`}>
-                          {row.neighborhood}
-                        </span>
+                        <TaxonomyTooltip name={row.neighborhood} type="neighborhood">
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                            nightMode ? 'bg-primary-500/20 text-primary-400' : 'bg-primary-100 text-primary-700'
+                          }`}>
+                            {row.neighborhood}
+                          </span>
+                        </TaxonomyTooltip>
                       </td>
                     )}
                     {isFirstClass && (
@@ -617,18 +623,21 @@ const DatasetOverview: FC<DatasetOverviewProps> = ({ nightMode }) => {
                           nightMode ? 'border-science-700/50' : 'border-science-200'
                         }`}
                       >
-                        <span className={`text-xs ${nightMode ? 'text-science-400' : 'text-science-600'}`}>
-                          {row.class}
-                        </span>
+                        <TaxonomyTooltip name={row.class} type="class">
+                          <span className={`text-xs ${nightMode ? 'text-science-400' : 'text-science-600'}`}>
+                            {row.class}
+                          </span>
+                        </TaxonomyTooltip>
                       </td>
                     )}
                     <td 
                       className={`px-3 py-1.5 border font-medium ${
                         nightMode ? 'border-science-700/50 text-white' : 'border-science-200 text-science-800'
                       }`}
-                      title={getTooltipText(row.subclass, 'subclass')}
                     >
-                      {row.subclass}
+                      <TaxonomyTooltip name={row.subclass} type="subclass">
+                        {row.subclass}
+                      </TaxonomyTooltip>
                     </td>
                     {assaySpeciesCombos.map(combo => (
                       <AvailabilityCell 
@@ -758,11 +767,13 @@ const DatasetOverview: FC<DatasetOverviewProps> = ({ nightMode }) => {
                           nightMode ? 'border-science-700/50' : 'border-science-200'
                         }`}
                       >
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${
-                          nightMode ? 'bg-primary-500/20 text-primary-400' : 'bg-primary-100 text-primary-700'
-                        }`}>
-                          {row.neighborhood}
-                        </span>
+                        <TaxonomyTooltip name={row.neighborhood} type="neighborhood">
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                            nightMode ? 'bg-primary-500/20 text-primary-400' : 'bg-primary-100 text-primary-700'
+                          }`}>
+                            {row.neighborhood}
+                          </span>
+                        </TaxonomyTooltip>
                       </td>
                     )}
                     {isFirstClass && (
@@ -772,9 +783,11 @@ const DatasetOverview: FC<DatasetOverviewProps> = ({ nightMode }) => {
                           nightMode ? 'border-science-700/50' : 'border-science-200'
                         }`}
                       >
-                        <span className={`text-xs ${nightMode ? 'text-science-400' : 'text-science-600'}`}>
-                          {row.class}
-                        </span>
+                        <TaxonomyTooltip name={row.class} type="class">
+                          <span className={`text-xs ${nightMode ? 'text-science-400' : 'text-science-600'}`}>
+                            {row.class}
+                          </span>
+                        </TaxonomyTooltip>
                       </td>
                     )}
                     {isFirstSubclass && (
@@ -783,20 +796,22 @@ const DatasetOverview: FC<DatasetOverviewProps> = ({ nightMode }) => {
                         className={`px-3 py-1.5 border ${
                           nightMode ? 'border-science-700/50' : 'border-science-200'
                         }`}
-                        title={getTooltipText(row.subclass, 'subclass')}
                       >
-                        <span className={`text-xs ${nightMode ? 'text-science-400' : 'text-science-600'}`}>
-                          {row.subclass}
-                        </span>
+                        <TaxonomyTooltip name={row.subclass} type="subclass">
+                          <span className={`text-xs ${nightMode ? 'text-science-400' : 'text-science-600'}`}>
+                            {row.subclass}
+                          </span>
+                        </TaxonomyTooltip>
                       </td>
                     )}
                     <td 
                       className={`px-3 py-1.5 border font-medium ${
                         nightMode ? 'border-science-700/50 text-white' : 'border-science-200 text-science-800'
                       }`}
-                      title={getTooltipText(row.group, 'group')}
                     >
-                      {row.group}
+                      <TaxonomyTooltip name={row.group} type="group">
+                        {row.group}
+                      </TaxonomyTooltip>
                     </td>
                     {assaySpeciesCombos.map(combo => (
                       <AvailabilityCell 
