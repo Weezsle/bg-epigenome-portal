@@ -155,14 +155,16 @@ const BrowserPanel: FC<BrowserPanelProps> = ({ nightMode, selectedTracks, viewRe
         </div>
 
         {/* Browser Display */}
+        <>{storeId} {viewRegion}</>
         <div className={`flex-1 flex flex-col ${isFullscreen ? 'min-h-0' : 'py-6'}`} style={{ minHeight: 0 }}>
           <div className={`flex-1 overflow-y-auto ${isFullscreen ? '' : ''}`} style={{ minHeight: 0 }}>
             <div className="relative bg-white w-full h-full">
               <GenomeHub
-                storeConfig={{storeId}}
+                storeConfig={{storeId: storeId, enablePersistence: false}}
+                viewRegion={{genomeCoodinate: viewRegion}}
+
                 genomeName={activeReference}
                 tracks={browserTracks}
-                viewRegion={viewRegion}
                 onSessionUpdate={(currentViewRegion: any) => {
 
                   if (currentViewRegion === null) {
