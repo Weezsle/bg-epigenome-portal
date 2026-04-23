@@ -51,8 +51,11 @@ function App() {
 
   // Browser view region state
   const DEFAULT_VIEW_REGION = 'chr7:27053397-27373765';
-  const [currentViewRegion, setCurrentViewRegion] = useState<string>(DEFAULT_VIEW_REGION);
-  
+
+  // CHADS NOTE: initialize setCurrentViewRegion to DEFAULT_VIEW_REGION for old functionality, 
+  // setting it to "" will allow the browser to load previous sessions data on refresh 
+  const [currentViewRegion, setCurrentViewRegion] = useState<string>("");
+
   // Access serialized selections for debugging or passing to other components
   // Keep groups and subclasses separated to distinguish between them
   const taxonomySelections = useMemo(() => {
@@ -252,7 +255,8 @@ function App() {
 
         {/* Browser and scAnalysis tabs use full width and maximize vertical space */}
         {currentTab === 'browser' || currentTab === 'scAnalysis' ? (
-          <main className="flex-1 flex flex-col px-4 sm:px-6 lg:px-8 py-4" style={{ minHeight: 0, overflow: 'hidden' }}>
+          // CHADS NOTE: padding here causes issues with Genomehub causes it to rerender twice px-4 sm:px-6 lg:px-8 py-4
+          <main className="flex flex-col " style={{ minHeight: 0, overflow: 'hidden' }}>
             <section className="animate-fade-in flex-1 flex flex-col" style={{ minHeight: 0, overflow: 'hidden' }}>
               {currentTab === 'browser' && (
                 <BrowserPanel 
@@ -260,6 +264,7 @@ function App() {
                   selectedTracks={selectedTracks}
                   viewRegion={currentViewRegion}
                   onViewRegionChange={setCurrentViewRegion}
+   
                 />
               )}
               {currentTab === 'scAnalysis' && (
@@ -290,7 +295,12 @@ function App() {
                   nightMode={nightMode} 
                   trackStates={trackStates}
                   setTrackStates={setTrackStates}
-                  onNextStep={() => handleTabChange('browser')}
+                  onNextStep={() => {
+                    // CHADS NOTE: when we select new tracks to view, we reset the view region back to default 
+                    // so it doesn't inheret stale view region data from prev session. 
+                    setCurrentViewRegion(DEFAULT_VIEW_REGION)
+                    handleTabChange('browser')}}
+              
                 />
               )}
               {currentTab === 'dataset' && <DatasetOverview nightMode={nightMode} />}
